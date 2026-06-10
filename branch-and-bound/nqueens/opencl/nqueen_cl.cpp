@@ -9,9 +9,13 @@
 #include <cstdlib>
 #include <cstring>
 #include "nqueen_cl.h"
-#include "../../include/common_args.h"
-#include "../../include/lsb.h"
-
+#include "../../../include/common_args.h"
+#if __has_include(<liblsb.h>)
+#include <liblsb.h>
+#define HAVE_LSB 1
+#else
+#define HAVE_LSB 0
+#endif
 //#define CHECK_ERROR(err) { if(err != CL_SUCCESS) throw CLError(err, __LINE__); }
 
 class CLMemAutoRelease

@@ -1,0 +1,21 @@
+[project]
+name = "extendedopendwarfs"
+version = "0.1.0"
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[dependencies]
+r-base = ">=4.4"
+r-tidyverse = "*"
+r-ggplot2 = "*"
+r-dplyr = "*"
+r-readr = "*"
+r-stringr = "*"
+r-forcats = "*"
+r-tidyr = "*"
+r-patchwork = "*"
+r-scales = "*"
+r-rcolorbrewer = "*"
+
+[tasks]
+plot-lsb = "Rscript scripts/plot_lsb.R results"

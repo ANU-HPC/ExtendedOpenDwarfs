@@ -7,11 +7,10 @@ extern "C" {
 
 
 #include <opts/opts.h>
-#ifdef OPENCL_HEADER_CL_CL
-#include <CL/cl.h>
-#endif
-#ifdef OPENCL_HEADER_LONG
+#ifdef __APPLE__
 #include <OpenCL/opencl.h>
+#else
+#include <CL/cl.h>
 #endif
 #include <string.h>
 #include <stdio.h>

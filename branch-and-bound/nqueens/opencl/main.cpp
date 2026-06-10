@@ -8,9 +8,15 @@
 #include <CL/cl.h>
 #endif
 
-#include "../../include/rdtsc.h"
-#include "../../include/common_args.h"
-#include "../../include/lsb.h"
+#if __has_include(<liblsb.h>)
+#include <liblsb.h>
+#define HAVE_LSB 1
+#else
+#define HAVE_LSB 0
+#endif
+
+#include "../../../include/rdtsc.h"
+#include "../../../include/common_args.h"
 #include "nqueen_cpu.h"
 #include "nqueen_cl.h"
 #include <iostream>
@@ -22,10 +28,26 @@
 int main(int argc, char** argv)
 {
 
-	ocd_init(&argc, &argv, NULL);
-	ocd_initCL();
+  ocd_init(&argc, &argv, NULL);
 
-	std::cerr << "N-Queen solver for OpenCL\n";
+#if HAVE_LSB
+  const char* lsb_name = std::getenv("ODW_LSB_NAME");
+  if (lsb_name == nullptr || lsb_name[0] == '\0') {
+      lsb_name = "nqueens";
+  }
+  LSB_Init(lsb_name, 0);
+  LSB_Set_Rparam_int("board_size", 0);
+  LSB_Set_Rparam_int("j", 0);
+  LSB_Set_Rparam_string("region", "runtime_initialization");
+  LSB_Res();
+#endif
+
+  ocd_initCL();
+
+#if HAVE_LSB
+  LSB_Rec(0);
+#endif
+  std::cerr << "N-Queen solver for OpenCL\n";
 	std::cerr << "Ping-Che Chen\n\n";
 	if(argc < 2) {
 		std::cerr << "Usage: " << argv[0] << " [options] N\n";
@@ -43,10 +65,6 @@ int main(int argc, char** argv)
 		std::cerr << "\t-vec4: use 4D vectors instead of 2D (only when vectorized- default: off)\n";
 		return 0;
 	}
-
-    LSB_Init("nqueens",0);
-    LSB_Set_Rparam_int("board_size",0);
-    LSB_Set_Rparam_int("j", 0);
 
 	// handle options
 	bool force_cpu = false;
