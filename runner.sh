@@ -1,12 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP="${APP:-nqueens}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+APP="${APP:-all}"
 ITERS="${ITERS:-5}"
 MODE="${MODE:-single}"
 SIZE="${SIZE:-tiny}"
 
-OPENCL_ARGS="${OPENCL_ARGS:--p 0 -d 0 -t 1 --}"
+APPS="${APP:-all}"
+
+if [[ "$APPS" == "all" ]]; then
+  APP_LIST=(nqueens crc)
+else
+  APP_LIST=("$APPS")
+fi
 
 usage() {
   cat <<EOF
@@ -48,7 +57,7 @@ else
   SIZES=("$SIZE")
 fi
 
-echo "Running APP=$APP ITERS=$ITERS MODE=$MODE SIZES=${SIZES[*]}"
+echo "Running APPS=${APP_LIST[*]} ITERS=$ITERS MODE=$MODE SIZES=${SIZES[*]}"
 
 run_one() {
   local backend="$1"
@@ -74,6 +83,19 @@ run_one() {
     ITERS="$ITERS"
 }
 
+prepare_app() {
+  local app="$1"
+
+  case "$app" in
+    crc)
+      echo
+      echo "==> Preparing CRC datasets"
+      make -C combinational-logic/crc clean
+      make -C combinational-logic/crc datasets
+      ;;
+  esac
+}
+
 run_size() {
   local size="$1"
 
@@ -82,7 +104,7 @@ run_size() {
   echo "SIZE=$size"
   echo "============================================================"
 
-  run_one opencl opencl "$size" env ARGS="$OPENCL_ARGS"
+  run_one opencl opencl "$size" env
 
   if . ./setup-backends.sh >/dev/null && [[ "${BACKENDS:-}" == *"hip"* ]]; then
     run_one hip hipcc "$size" env
@@ -98,8 +120,13 @@ run_size() {
   fi
 }
 
-for size in "${SIZES[@]}"; do
-  run_size "$size"
+for app in "${APP_LIST[@]}"; do
+  APP="$app"
+  prepare_app "$APP"
+
+  for size in "${SIZES[@]}"; do
+    run_size "$size"
+  done
 done
 
 echo

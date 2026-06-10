@@ -1,5 +1,5 @@
 #include "../../../include/common_args.h"
-#include "../inc/crc_formats.h"
+#include <include/crc_formats.h>
 
 #include<stdio.h>
 #include<stdlib.h>

@@ -1,4 +1,4 @@
-#include "../inc/crc_formats.h"
+#include <include/crc_formats.h>
 
 unsigned int* read_crc(unsigned int* num_pages,unsigned int* page_size,const char* file_path)
 {

@@ -18,6 +18,9 @@ APP_PATHS = {
         "opencl": "branch-and-bound/nqueens/opencl",
         "hip": "branch-and-bound/nqueens/hip",
     },
+    "crc": {
+        "opencl": "combinational-logic/crc/opencl",
+    },
 }
 
 COMPILERS = {
@@ -43,6 +46,8 @@ def shell(cmd, cwd=None):
 def host_name():
     return os.uname().nodename.split(".")[0]
 
+def opencl_args():
+    return os.environ.get("OPENCL_ARGS", "-p 0 -d 0 -t 1 --").strip()
 
 def make_vars(backend, compiler):
     top = REPO_ROOT
@@ -120,19 +125,28 @@ def make_vars(backend, compiler):
         ]
 
     if backend == "opencl":
+        opencl_cppflags = os.environ.get(
+            "OPENCL_CPPFLAGS",
+            "-DOPENCL -DCL_TARGET_OPENCL_VERSION=120",
+        )
+
+        required_defs = "-D_GNU_SOURCE -D_DEFAULT_SOURCE"
+        for flag in required_defs.split():
+            if flag not in opencl_cppflags.split():
+                opencl_cppflags = f"{flag} {opencl_cppflags}"
+
         return common + [
-            f"CC={os.environ.get('CC', 'gcc')}",
-            f"CXX={os.environ.get('CXX', 'g++')}",
+            "CC=/usr/bin/gcc",
+            "CXX=/usr/bin/g++",
             f"CFLAGS={os.environ.get('CFLAGS', '-O3 -std=c99')}",
             f"CXXFLAGS={os.environ.get('CXXFLAGS', '-O3 -std=c++17')}",
             f"OCD_COMMON_ARGS_SRC={os.environ.get('OCD_COMMON_ARGS_SRC', str(top / 'include' / 'common_args.c'))}",
             f"OCD_OPTS_SRC={os.environ.get('OCD_OPTS_SRC', str(top / 'opts' / 'opts.c'))}",
             f"OCD_RDTSC_SRC={os.environ.get('OCD_RDTSC_SRC', str(top / 'include' / 'rdtsc.c'))}",
-            f"OPENCL_CPPFLAGS={os.environ.get('OPENCL_CPPFLAGS', '-DOPENCL -DCL_TARGET_OPENCL_VERSION=120')}",
+            f"OPENCL_CPPFLAGS={opencl_cppflags}",
             f"OPENCL_LDFLAGS={os.environ.get('OPENCL_LDFLAGS', '')}",
             f"OPENCL_LDLIBS={os.environ.get('OPENCL_LDLIBS', '-lOpenCL')}",
         ]
-
     raise SystemExit(f"Unknown backend: {backend}")
 
 
@@ -219,7 +233,12 @@ def run(args):
 
         problem_args = app[args.size]
         extra_args = os.environ.get("ARGS", "").strip()
-        final_args = f"{extra_args} {problem_args}".strip()
+
+        if args.backend == "opencl":
+            selector_args = opencl_args()
+            final_args = f"{extra_args} {selector_args} {problem_args}".strip()
+        else:
+            final_args = f"{extra_args} {problem_args}".strip()
 
         lsb_name = f"{app['name']}_{args.backend}_{args.compiler}".replace("-", "_")
 

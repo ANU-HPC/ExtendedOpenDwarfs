@@ -11,11 +11,11 @@
 #include <unistd.h>
 #include <string.h>
 #include <math.h>
-#include "../../../include/rdtsc.h"
-#include "../../../include/common_args.h"
-#include "../../../include/lsb.h"
-#include "../inc/crc_formats.h"
-#include "../inc/eth_crc32_lut.h"
+#include <include/rdtsc.h>
+#include <include/common_args.h>
+#include <include/lsb.h>
+#include <include/crc_formats.h>
+#include <include/eth_crc32_lut.h>
 
 #define DATA_SIZE 100000000
 #define MIN_TIME_SEC 2
