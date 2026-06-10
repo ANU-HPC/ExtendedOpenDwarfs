@@ -89,7 +89,7 @@ This work is described in:
 - Beau Johnston,
   *Characterizing and Predicting Scientific Workloads for Heterogeneous Computing Systems*,
   PhD Thesis, Australian National University, 2019.
-  https://openresearch-repository.anu.edu.au/handle/1885/204533
+  https://openresearch-repository.anu.edu.au/handle/1885/162792
 
 ---
 
@@ -540,7 +540,7 @@ Publication Pending---for now just cite this repository.
   title  = {Characterizing and Predicting Scientific Workloads for Heterogeneous Computing Systems},
   school = {Australian National University},
   year   = {2019},
-  url    = {https://openresearch-repository.anu.edu.au/handle/1885/204533}
+  url    = {https://openresearch-repository.anu.edu.au/handle/1885/162792}
 }
 ```
 
