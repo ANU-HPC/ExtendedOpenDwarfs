@@ -17,6 +17,24 @@ args <- commandArgs(trailingOnly = TRUE)
 results_dir <- ifelse(length(args) >= 1, args[[1]], "results")
 out_dir <- ifelse(length(args) >= 2, args[[2]], file.path(results_dir, "plots"))
 
+filter_app <- NULL
+filter_backend <- NULL
+
+if (length(args) > 2) {
+  i <- 3
+  while (i <= length(args)) {
+    if (args[[i]] == "--app" && i + 1 <= length(args)) {
+      filter_app <- args[[i + 1]]
+      i <- i + 2
+    } else if (args[[i]] == "--backend" && i + 1 <= length(args)) {
+      filter_backend <- args[[i + 1]]
+      i <- i + 2
+    } else {
+      i <- i + 1
+    }
+  }
+}
+
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 backend_colours <- c(
@@ -33,14 +51,16 @@ region_class_levels <- c(
   "Buffer/setup",
   "Transfer",
   "Kernel",
+  "Input load",
   "Other"
 )
 
 classify_region <- function(region) {
   case_when(
     str_detect(region, regex("^runtime_initialization$", ignore_case = TRUE)) ~ "Runtime init",
+    str_detect(region, regex("^host_input_load$", ignore_case = TRUE)) ~ "Input load",
     str_detect(region, regex("kernel_creation|program_creation|build", ignore_case = TRUE)) ~ "Kernel creation",
-    str_detect(region, regex("kernel|compute|solve|execute", ignore_case = TRUE)) ~ "Kernel",
+    str_detect(region, regex("^kernel_execution$|kernel|compute|solve|execute", ignore_case = TRUE)) ~ "Kernel",
     str_detect(region, regex("h2d|d2h|copy|transfer|memcpy|read|write", ignore_case = TRUE)) ~ "Transfer",
     str_detect(region, regex("setup|argument|arg|alloc|buffer|init", ignore_case = TRUE)) ~ "Buffer/setup",
     TRUE ~ "Other"
@@ -76,15 +96,23 @@ extract_nodename <- function(lines) {
 parse_lsb_table <- function(lines, header_idx) {
   header <- str_split(str_squish(lines[[header_idx]]), "\\s+")[[1]]
 
-  if (!all(c("region", "id", "time", "overhead") %in% header)) {
+  required <- c("region", "id", "time", "overhead")
+  if (!all(required %in% header)) {
     return(NULL)
   }
 
   region_pos <- match("region", header)
-  param_names <- header[seq_len(region_pos - 1)]
+  id_pos <- match("id", header)
+  time_pos <- match("time", header)
+  overhead_pos <- match("overhead", header)
+
+  param_names <- setdiff(header, required)
 
   data_lines <- lines[(header_idx + 1):length(lines)]
-  data_lines <- data_lines[str_detect(data_lines, "^\\s*[-0-9]+\\s+")]
+  data_lines <- data_lines[
+    !str_detect(data_lines, "^#") &
+      !str_detect(data_lines, "^\\s*$")
+  ]
 
   if (length(data_lines) == 0) {
     return(NULL)
@@ -93,29 +121,33 @@ parse_lsb_table <- function(lines, header_idx) {
   tokens <- str_split(str_squish(data_lines), "\\s+")
 
   rows <- map_dfr(tokens, function(x) {
-    n <- length(x)
-
-    if (n < 4) {
+    if (length(x) < length(header)) {
       return(tibble())
     }
 
-    param_values <- character(0)
+    x <- x[seq_len(length(header))]
 
-    if (length(param_names) > 0) {
-      param_values <- x[seq_len(min(length(param_names), n - 4))]
-      names(param_values) <- param_names[seq_along(param_values)]
+    param_values <- list()
+    for (param in param_names) {
+      pos <- match(param, header)
+      param_values[[param]] <- x[[pos]]
     }
 
     tibble(
-      !!!as.list(param_values),
-      region = x[n - 3],
-      id = suppressWarnings(as.integer(x[n - 2])),
-      time_us = suppressWarnings(as.numeric(x[n - 1])),
-      overhead = suppressWarnings(as.numeric(x[n]))
+      !!!param_values,
+      region = x[[region_pos]],
+      id = suppressWarnings(as.integer(x[[id_pos]])),
+      time_us = suppressWarnings(as.numeric(x[[time_pos]])),
+      overhead = suppressWarnings(as.numeric(x[[overhead_pos]]))
     )
   })
 
   rows |>
+    filter(
+      !is.na(region),
+      region != "",
+      !is.na(time_us)
+    ) |>
     mutate(across(
       -c(region),
       ~ suppressWarnings(type.convert(.x, as.is = TRUE))
@@ -318,10 +350,7 @@ make_benchmark_plots <- function(bench_df, bench_out) {
     summarise(time_us = sum(time_us), .groups = "drop") |>
     group_by(system, benchmark, implementation, region) |>
     summarise(time_us = median(time_us), .groups = "drop") |>
-    group_by(system, benchmark) |>
-    mutate(region_total = sum(time_us)) |>
-    ungroup() |>
-    arrange(system, benchmark, desc(time_us))
+    arrange(system, benchmark, implementation, desc(time_us))
 
   actual_region_plot <- ggplot(
     actual_region_breakdown,
@@ -436,6 +465,20 @@ df <- map_dfr(files, read_lsb_file)
 
 if (nrow(df) == 0) {
   stop("No readable LSB files found in ", results_dir)
+}
+
+if (!is.null(filter_app) && filter_app != "all") {
+  wanted_apps <- str_split(filter_app, ",")[[1]]
+  df <- df |> filter(benchmark %in% wanted_apps)
+}
+
+if (!is.null(filter_backend) && filter_backend != "all") {
+  wanted_backends <- str_split(filter_backend, ",")[[1]]
+  df <- df |> filter(backend %in% wanted_backends)
+}
+
+if (nrow(df) == 0) {
+  stop("No readable LSB files matched selected filters")
 }
 
 df <- df |>

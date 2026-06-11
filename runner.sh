@@ -8,14 +8,7 @@ APP="${APP:-all}"
 ITERS="${ITERS:-5}"
 MODE="${MODE:-single}"
 SIZE="${SIZE:-tiny}"
-
-APPS="${APP:-all}"
-
-if [[ "$APPS" == "all" ]]; then
-  APP_LIST=(nqueens crc)
-else
-  APP_LIST=("$APPS")
-fi
+BACKEND="${BACKEND:-all}"
 
 usage() {
   cat <<EOF
@@ -23,7 +16,8 @@ Usage:
   ./runner.sh [options]
 
 Options:
-  --app APP          Benchmark app, default: nqueens
+  --app APP          Benchmark app, default: all
+  --backend BACKEND  all|opencl|cuda|hip, default: all
   --size SIZE        tiny|small|medium|large|default
   --iters N          Repetitions per configuration, default: 5
   --full             Run tiny, small, medium, and large
@@ -32,7 +26,7 @@ Options:
   --help             Show this help
 
 Environment:
-  APP=nqueens SIZE=small ITERS=10 ./runner.sh
+  APP=crc BACKEND=cuda SIZE=tiny ITERS=10 ./runner.sh
   MODE=full ./runner.sh
 EOF
 }
@@ -42,6 +36,7 @@ DO_PLOTS=1
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --app) APP="$2"; shift 2 ;;
+    --backend) BACKEND="$2"; shift 2 ;;
     --size) SIZE="$2"; MODE="single"; shift 2 ;;
     --iters) ITERS="$2"; shift 2 ;;
     --full|--sweep) MODE="full"; shift ;;
@@ -51,13 +46,27 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+case "$APP" in
+  all) APP_LIST=(nqueens crc) ;;
+  *) APP_LIST=("$APP") ;;
+esac
+
+case "$BACKEND" in
+  all|opencl|cuda|hip) ;;
+  *)
+    echo "Unknown backend: $BACKEND" >&2
+    usage
+    exit 1
+    ;;
+esac
+
 if [[ "$MODE" == "full" ]]; then
   SIZES=(tiny small medium large)
 else
   SIZES=("$SIZE")
 fi
 
-echo "Running APPS=${APP_LIST[*]} ITERS=$ITERS MODE=$MODE SIZES=${SIZES[*]}"
+echo "Running APPS=${APP_LIST[*]} BACKEND=$BACKEND ITERS=$ITERS MODE=$MODE SIZES=${SIZES[*]}"
 
 run_one() {
   local backend="$1"
@@ -96,6 +105,30 @@ prepare_app() {
   esac
 }
 
+host_supports_backend() {
+  local backend="$1"
+
+  . ./setup-backends.sh >/dev/null
+
+  case "$backend" in
+    opencl)
+      [[ "${BACKENDS:-}" == *"opencl"* ]]
+      ;;
+    cuda)
+      [[ "${BACKENDS:-}" == *"cuda"* ]]
+      ;;
+    hip)
+      [[ "${BACKENDS:-}" == *"hip"* ]]
+      ;;
+    scale-amd)
+      [[ -n "${HIP_DEV_TARGET:-}" ]]
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 run_size() {
   local size="$1"
 
@@ -104,19 +137,35 @@ run_size() {
   echo "SIZE=$size"
   echo "============================================================"
 
-  run_one opencl opencl "$size" env
-
-  if . ./setup-backends.sh >/dev/null && [[ "${BACKENDS:-}" == *"hip"* ]]; then
-    run_one hip hipcc "$size" env
+  if [[ "$BACKEND" == "all" || "$BACKEND" == "opencl" ]]; then
+    if host_supports_backend opencl; then
+      run_one opencl opencl "$size" env
+    else
+      echo "Skipping OpenCL: not available on this host"
+    fi
   fi
 
-  if . ./setup-backends.sh >/dev/null && [[ "${BACKENDS:-}" == *"cuda"* ]]; then
-    run_one cuda nvcc "$size" env
-    run_one cuda scale-nvidia "$size" env
+  if [[ "$BACKEND" == "all" || "$BACKEND" == "hip" ]]; then
+    if host_supports_backend hip; then
+      run_one hip hipcc "$size" env
+    else
+      echo "Skipping HIP: not available on this host"
+    fi
   fi
 
-  if . ./setup-backends.sh >/dev/null && [[ -n "${HIP_DEV_TARGET:-}" ]]; then
-    run_one cuda scale-amd "$size" env
+  if [[ "$BACKEND" == "all" || "$BACKEND" == "cuda" ]]; then
+    if host_supports_backend cuda; then
+      run_one cuda nvcc "$size" env
+      run_one cuda scale-nvidia "$size" env
+    else
+      echo "Skipping CUDA: not available on this host"
+    fi
+
+    if host_supports_backend scale-amd; then
+      run_one cuda scale-amd "$size" env
+    elif [[ "$BACKEND" == "cuda" ]]; then
+      echo "Skipping SCALE AMD path: HIP target not available on this host"
+    fi
   fi
 }
 
@@ -134,7 +183,16 @@ echo "Done. Results should be in ./results/"
 
 if [[ "$DO_PLOTS" == "1" ]]; then
   echo "Generating plots in ./results/plots"
-  pixi run plot-lsb
+
+  PLOT_APP="$APP"
+  PLOT_BACKEND="$BACKEND"
+
+  pixi run Rscript scripts/plot_lsb.R \
+    results \
+    results/plots \
+    --app "$PLOT_APP" \
+    --backend "$PLOT_BACKEND"
+
   tar -czf results/plots.tar.gz -C results plots
   echo "Done. Plots should be in ./results/plots"
 fi

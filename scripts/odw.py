@@ -19,6 +19,7 @@ APP_PATHS = {
         "hip": "branch-and-bound/nqueens/hip",
     },
     "crc": {
+        "cuda": "combinational-logic/crc/cuda",
         "opencl": "combinational-logic/crc/opencl",
     },
 }
