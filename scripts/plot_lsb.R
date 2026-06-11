@@ -10,7 +10,41 @@ suppressPackageStartupMessages({
   library(purrr)
   library(tibble)
   library(scales)
+  library(parallel)
 })
+
+SCRIPT_START <- Sys.time()
+
+elapsed_s <- function() {
+  as.numeric(difftime(Sys.time(), SCRIPT_START, units = "secs"))
+}
+
+log_msg <- function(...) {
+  cat(sprintf("[plot_lsb +%6.2fs] ", elapsed_s()), sprintf(...), "\n", sep = "")
+  flush.console()
+}
+
+get_worker_count <- function(n_files) {
+  requested <- as.integer(Sys.getenv("PLOT_LSB_JOBS", "32"))
+
+  if (is.na(requested) || requested <= 0L) {
+    requested <- 32L
+  }
+
+  cores <- parallel::detectCores(logical = FALSE)
+  if (is.na(cores) || cores <= 0L) {
+    cores <- 1L
+  }
+
+  max(1L, min(requested, cores, n_files))
+}
+
+POINT_SAMPLE_PER_GROUP <- as.integer(Sys.getenv("PLOT_LSB_POINT_SAMPLE", "250"))
+if (is.na(POINT_SAMPLE_PER_GROUP) || POINT_SAMPLE_PER_GROUP < 0L) {
+  POINT_SAMPLE_PER_GROUP <- 250L
+}
+
+SHOW_POINTS <- Sys.getenv("PLOT_LSB_SHOW_POINTS", "1") != "0"
 
 args <- commandArgs(trailingOnly = TRUE)
 
@@ -19,6 +53,7 @@ out_dir <- ifelse(length(args) >= 2, args[[2]], file.path(results_dir, "plots"))
 
 filter_app <- NULL
 filter_backend <- NULL
+plot_mode <- "full"
 
 if (length(args) > 2) {
   i <- 3
@@ -29,10 +64,17 @@ if (length(args) > 2) {
     } else if (args[[i]] == "--backend" && i + 1 <= length(args)) {
       filter_backend <- args[[i + 1]]
       i <- i + 2
+    } else if (args[[i]] == "--mode" && i + 1 <= length(args)) {
+      plot_mode <- args[[i + 1]]
+      i <- i + 2
     } else {
       i <- i + 1
     }
   }
+}
+
+if (!(plot_mode %in% c("light", "full"))) {
+  stop("Unknown plot mode: ", plot_mode)
 }
 
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
@@ -67,135 +109,6 @@ classify_region <- function(region) {
   )
 }
 
-extract_runtime <- function(lines) {
-  runtime_line <- lines |>
-    str_subset("^# Runtime:") |>
-    first()
-
-  if (is.na(runtime_line)) {
-    return(NA_real_)
-  }
-
-  as.numeric(str_match(runtime_line, "# Runtime:\\s*([0-9.]+)\\s*s")[1, 2])
-}
-
-extract_nodename <- function(lines) {
-  nodename <- lines |>
-    str_subset("^# Nodename:") |>
-    first()
-
-  if (is.na(nodename)) {
-    return(NA_character_)
-  }
-
-  nodename |>
-    str_replace("^# Nodename:\\s*", "") |>
-    str_replace("\\..*$", "")
-}
-
-parse_lsb_table <- function(lines, header_idx) {
-  header <- str_split(str_squish(lines[[header_idx]]), "\\s+")[[1]]
-
-  required <- c("region", "id", "time", "overhead")
-  if (!all(required %in% header)) {
-    return(NULL)
-  }
-
-  region_pos <- match("region", header)
-  id_pos <- match("id", header)
-  time_pos <- match("time", header)
-  overhead_pos <- match("overhead", header)
-
-  param_names <- setdiff(header, required)
-
-  data_lines <- lines[(header_idx + 1):length(lines)]
-  data_lines <- data_lines[
-    !str_detect(data_lines, "^#") &
-      !str_detect(data_lines, "^\\s*$")
-  ]
-
-  if (length(data_lines) == 0) {
-    return(NULL)
-  }
-
-  tokens <- str_split(str_squish(data_lines), "\\s+")
-
-  rows <- map_dfr(tokens, function(x) {
-    if (length(x) < length(header)) {
-      return(tibble())
-    }
-
-    x <- x[seq_len(length(header))]
-
-    param_values <- list()
-    for (param in param_names) {
-      pos <- match(param, header)
-      param_values[[param]] <- x[[pos]]
-    }
-
-    tibble(
-      !!!param_values,
-      region = x[[region_pos]],
-      id = suppressWarnings(as.integer(x[[id_pos]])),
-      time_us = suppressWarnings(as.numeric(x[[time_pos]])),
-      overhead = suppressWarnings(as.numeric(x[[overhead_pos]]))
-    )
-  })
-
-  rows |>
-    filter(
-      !is.na(region),
-      region != "",
-      !is.na(time_us)
-    ) |>
-    mutate(across(
-      -c(region),
-      ~ suppressWarnings(type.convert(.x, as.is = TRUE))
-    ))
-}
-
-read_lsb_file <- function(path) {
-  lines <- readLines(path, warn = FALSE)
-  base <- basename(path)
-
-  meta <- str_match(
-    base,
-    "^lsb\\.([A-Za-z0-9]+)_([A-Za-z0-9]+)_([A-Za-z0-9_]+)\\.r[0-9]+(?:-([0-9]+))?$"
-  )
-
-  if (is.na(meta[1, 1])) {
-    warning("Skipping unrecognised LSB filename: ", base)
-    return(NULL)
-  }
-
-  header_idx <- which(str_detect(lines, "^\\s*\\S+\\s+.*\\s+region\\s+.*\\stime\\s+"))[1]
-
-  if (is.na(header_idx)) {
-    warning("No timing table found in: ", base)
-    return(NULL)
-  }
-
-  rows <- parse_lsb_table(lines, header_idx)
-
-  if (is.null(rows) || nrow(rows) == 0) {
-    warning("No timing rows found in: ", base)
-    return(NULL)
-  }
-
-  rows |>
-    mutate(
-      file = base,
-      system = extract_nodename(lines),
-      benchmark = meta[1, 2],
-      backend = meta[1, 3],
-      compiler = str_replace_all(meta[1, 4], "_", "-"),
-      implementation = paste(backend, compiler, sep = "/"),
-      run = ifelse(is.na(meta[1, 5]), 0L, as.integer(meta[1, 5])),
-      runtime_s = extract_runtime(lines),
-      region_class = classify_region(region)
-    )
-}
-
 theme_pub <- function() {
   theme_bw(base_size = 14) +
     theme(
@@ -224,6 +137,207 @@ normalise_by_fastest <- function(data, value_col, group_cols) {
     select(-.baseline)
 }
 
+sample_for_points <- function(df, group_cols, max_points_per_group = POINT_SAMPLE_PER_GROUP) {
+  if (!SHOW_POINTS || max_points_per_group <= 0L || nrow(df) == 0L) {
+    return(df[0, , drop = FALSE])
+  }
+
+  df |>
+    group_by(across(all_of(group_cols))) |>
+    group_modify(function(.x, .y) {
+      slice_sample(.x, n = min(nrow(.x), max_points_per_group))
+    }) |>
+    ungroup()
+}
+
+jitter_points <- function(
+  df,
+  group_cols,
+  width = 0.12,
+  alpha = 0.25,
+  size = 0.7
+) {
+  if (!SHOW_POINTS || POINT_SAMPLE_PER_GROUP <= 0L || nrow(df) == 0L) {
+    return(NULL)
+  }
+
+  geom_jitter(
+    data = sample_for_points(df, group_cols),
+    width = width,
+    alpha = alpha,
+    size = size
+  )
+}
+
+extract_runtime <- function(lines) {
+  runtime_line <- lines |>
+    str_subset("^# Runtime:") |>
+    first()
+
+  if (is.na(runtime_line)) {
+    return(NA_real_)
+  }
+
+  as.numeric(str_match(runtime_line, "# Runtime:\\s*([0-9.]+)\\s*s")[1, 2])
+}
+
+extract_nodename_fast <- function(lines) {
+  idx <- grep("^# Nodename:", lines, fixed = FALSE)[1]
+
+  if (is.na(idx)) {
+    return(NA_character_)
+  }
+
+  sub("\\..*$", "", sub("^# Nodename:\\s*", "", lines[[idx]]))
+}
+
+parse_lsb_filename <- function(path) {
+  base <- basename(path)
+
+  meta <- str_match(
+    base,
+    "^lsb\\.([A-Za-z0-9]+)_([A-Za-z0-9]+)_([A-Za-z0-9_]+)\\.r[0-9]+(?:-([0-9]+))?$"
+  )
+
+  if (is.na(meta[1, 1])) {
+    return(NULL)
+  }
+
+  list(
+    file = base,
+    benchmark = meta[1, 2],
+    backend = meta[1, 3],
+    compiler = str_replace_all(meta[1, 4], "_", "-"),
+    run = ifelse(is.na(meta[1, 5]), 0L, as.integer(meta[1, 5]))
+  )
+}
+
+parse_lsb_table_fast <- function(lines, header_idx, meta, system, runtime_s) {
+  header <- str_split(str_squish(lines[[header_idx]]), "\\s+")[[1]]
+
+  region_pos <- match("region", header)
+  time_pos <- match("time", header)
+  id_pos <- match("id", header)
+  overhead_pos <- match("overhead", header)
+
+  if (is.na(region_pos) || is.na(time_pos)) {
+    return(NULL)
+  }
+
+  data_lines <- lines[(header_idx + 1):length(lines)]
+  data_lines <- data_lines[
+    !str_detect(data_lines, "^#") &
+      !str_detect(data_lines, "^\\s*$")
+  ]
+
+  if (length(data_lines) == 0) {
+    return(NULL)
+  }
+
+  fields <- str_split_fixed(str_squish(data_lines), "\\s+", n = length(header))
+
+  time_us <- suppressWarnings(as.numeric(fields[, time_pos]))
+  keep <- !is.na(time_us)
+
+  if (!any(keep)) {
+    return(NULL)
+  }
+
+  id <- if (!is.na(id_pos)) {
+    suppressWarnings(as.integer(fields[keep, id_pos]))
+  } else {
+    NA_integer_
+  }
+
+  overhead <- if (!is.na(overhead_pos)) {
+    suppressWarnings(as.numeric(fields[keep, overhead_pos]))
+  } else {
+    NA_real_
+  }
+
+  region <- fields[keep, region_pos]
+
+  tibble(
+    file = meta$file,
+    system = system,
+    benchmark = meta$benchmark,
+    backend = meta$backend,
+    compiler = meta$compiler,
+    implementation = paste(meta$backend, meta$compiler, sep = "/"),
+    run = meta$run,
+    region = region,
+    region_class = classify_region(region),
+    id = id,
+    time_us = time_us[keep],
+    overhead = overhead,
+    runtime_s = runtime_s
+  )
+}
+
+read_lsb_file_fast <- function(path) {
+  meta <- parse_lsb_filename(path)
+  if (is.null(meta)) {
+    return(NULL)
+  }
+
+  lines <- readLines(path, warn = FALSE)
+  system <- extract_nodename_fast(lines)
+  runtime_s <- extract_runtime(lines)
+
+  header_idx <- grep("\\bregion\\b.*\\bid\\b.*\\btime\\b.*\\boverhead\\b", lines)[1]
+  if (is.na(header_idx)) {
+    header_idx <- which(str_detect(lines, "^\\s*\\S+\\s+.*\\s+region\\s+.*\\stime\\s+"))[1]
+  }
+
+  if (is.na(header_idx)) {
+    return(NULL)
+  }
+
+  parse_lsb_table_fast(lines, header_idx, meta, system, runtime_s)
+}
+
+parse_files_with_progress <- function(files) {
+  n_workers <- get_worker_count(length(files))
+
+  parse_one <- function(i) {
+    rows <- read_lsb_file_fast(files[[i]])
+
+    list(
+      rows = rows,
+      rows_n = if (is.null(rows)) 0L else nrow(rows)
+    )
+  }
+
+  pb <- txtProgressBar(min = 0, max = length(files), style = 3)
+  parsed <- vector("list", length(files))
+  done <- 0L
+
+  batches <- split(seq_along(files), ceiling(seq_along(files) / n_workers))
+
+  for (batch in batches) {
+    batch_result <- if (n_workers <= 1L || length(batch) <= 1L) {
+      lapply(batch, parse_one)
+    } else {
+      parallel::mclapply(
+        batch,
+        parse_one,
+        mc.cores = min(n_workers, length(batch)),
+        mc.preschedule = FALSE
+      )
+    }
+
+    for (j in seq_along(batch)) {
+      parsed[[batch[[j]]]] <- batch_result[[j]]
+      done <- done + 1L
+      setTxtProgressBar(pb, done)
+    }
+  }
+
+  close(pb)
+
+  bind_rows(lapply(parsed, function(x) x$rows))
+}
+
 make_benchmark_plots <- function(bench_df, bench_out) {
   dir.create(bench_out, recursive = TRUE, showWarnings = FALSE)
 
@@ -242,7 +356,12 @@ make_benchmark_plots <- function(bench_df, bench_out) {
       aes(x = implementation, y = runtime_s * 1e3, fill = implementation)
     ) +
       geom_boxplot(outlier.shape = NA) +
-      geom_jitter(width = 0.12, alpha = 0.45, size = 1.4) +
+      jitter_points(
+        runtime_df,
+        c("system", "benchmark", "implementation"),
+        alpha = 0.35,
+        size = 1.1
+      ) +
       facet_wrap(~system, scales = "free_x") +
       scale_impl_fill() +
       labs(
@@ -395,7 +514,12 @@ make_benchmark_plots <- function(bench_df, bench_out) {
     aes(x = implementation, y = time_us, fill = implementation)
   ) +
     geom_boxplot(outlier.shape = NA) +
-    geom_jitter(width = 0.12, alpha = 0.35, size = 1.1) +
+    jitter_points(
+      bench_df,
+      c("system", "benchmark", "implementation", "region_class"),
+      alpha = 0.20,
+      size = 0.45
+    ) +
     facet_grid(region_class ~ system, scales = "free_y") +
     scale_impl_fill() +
     labs(
@@ -417,7 +541,12 @@ make_benchmark_plots <- function(bench_df, bench_out) {
       aes(x = implementation, y = time_us, fill = implementation)
     ) +
       geom_boxplot(outlier.shape = NA) +
-      geom_jitter(width = 0.12, alpha = 0.45, size = 1.4) +
+      jitter_points(
+        kernel_df,
+        c("system", "benchmark", "implementation"),
+        alpha = 0.30,
+        size = 0.9
+      ) +
       facet_wrap(~system, scales = "free_x") +
       scale_impl_fill() +
       labs(
@@ -455,13 +584,45 @@ make_benchmark_plots <- function(bench_df, bench_out) {
     save_plot(kernel_norm_plot, file.path(bench_out, "kernel_regions_normalised.pdf"))
   }
 
-  write_csv(bench_df, file.path(bench_out, "lsb_long.csv"))
-  write_csv(region_class_breakdown, file.path(bench_out, "region_class_summary.csv"))
-  write_csv(actual_region_breakdown, file.path(bench_out, "actual_region_summary.csv"))
+  invisible(NULL)
 }
 
+log_msg(
+  "mode=full-bounded requested_mode=%s app=%s backend=%s jobs=%s point_sample=%d show_points=%s",
+  plot_mode,
+  ifelse(is.null(filter_app), "all", filter_app),
+  ifelse(is.null(filter_backend), "all", filter_backend),
+  Sys.getenv("PLOT_LSB_JOBS", "32"),
+  POINT_SAMPLE_PER_GROUP,
+  ifelse(SHOW_POINTS, "yes", "no")
+)
+
 files <- list.files(results_dir, pattern = "^lsb\\.", full.names = TRUE)
-df <- map_dfr(files, read_lsb_file)
+
+if (!is.null(filter_app) && filter_app != "all") {
+  wanted_apps <- str_split(filter_app, ",")[[1]]
+  wanted_apps_regex <- paste(wanted_apps, collapse = "|")
+  files <- files[str_detect(basename(files), paste0("^lsb\\.(", wanted_apps_regex, ")_"))]
+}
+
+if (!is.null(filter_backend) && filter_backend != "all") {
+  wanted_backends <- str_split(filter_backend, ",")[[1]]
+  wanted_backends_regex <- paste(wanted_backends, collapse = "|")
+  files <- files[str_detect(basename(files), paste0("^lsb\\.[A-Za-z0-9]+_(", wanted_backends_regex, ")_"))]
+}
+
+if (length(files) == 0) {
+  stop("No LSB files matched selected filters in ", results_dir)
+}
+
+sizes <- file.info(files)$size / (1024 * 1024)
+log_msg(
+  "parsing %d LSB files, %.2f MiB total",
+  length(files),
+  sum(sizes, na.rm = TRUE)
+)
+
+df <- parse_files_with_progress(files)
 
 if (nrow(df) == 0) {
   stop("No readable LSB files found in ", results_dir)
@@ -487,7 +648,13 @@ df <- df |>
     region_class = factor(region_class, levels = region_class_levels)
   )
 
-write_csv(df, file.path(out_dir, "lsb_long.csv"))
+log_msg(
+  "parsed %s rows across %d benchmark(s), %d implementation(s), %d system(s)",
+  comma(nrow(df)),
+  n_distinct(df$benchmark),
+  n_distinct(df$implementation),
+  n_distinct(df$system)
+)
 
 for (bench in sort(unique(df$benchmark))) {
   bench_df <- df |>
@@ -498,5 +665,12 @@ for (bench in sort(unique(df$benchmark))) {
     file.path(out_dir, bench)
   )
 }
+
+n_plots <- length(unique(df$benchmark))
+log_msg(
+  "generated full bounded plot set for %d benchmark(s) in %.2fs",
+  n_plots,
+  elapsed_s()
+)
 
 message("Wrote plots and CSV files to: ", out_dir)

@@ -23,6 +23,7 @@ Options:
   --full             Run tiny, small, medium, and large
   --sweep            Alias for --full
   --no-plots         Skip plot generation
+  --plot-mode MODE   light|full, default: light
   --help             Show this help
 
 Environment:
@@ -45,6 +46,9 @@ while [[ $# -gt 0 ]]; do
     *) echo "Unknown option: $1" >&2; usage; exit 1 ;;
   esac
 done
+
+PLOT_APP="$APP"
+PLOT_BACKEND="$BACKEND"
 
 case "$APP" in
   all) APP_LIST=(nqueens crc) ;;
@@ -184,15 +188,11 @@ echo "Done. Results should be in ./results/"
 if [[ "$DO_PLOTS" == "1" ]]; then
   echo "Generating plots in ./results/plots"
 
-  PLOT_APP="$APP"
-  PLOT_BACKEND="$BACKEND"
-
   pixi run Rscript scripts/plot_lsb.R \
     results \
     results/plots \
     --app "$PLOT_APP" \
-    --backend "$PLOT_BACKEND"
-
+    --backend "$PLOT_BACKEND" \
   tar -czf results/plots.tar.gz -C results plots
   echo "Done. Plots should be in ./results/plots"
 fi

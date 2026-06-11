@@ -217,8 +217,12 @@ int main(int argc, char** argv)
 	int c;
 	struct timeval start, end;
 
-	LSB_Init("crc", 0);
-	LSB_Set_Rparam_int("repeats_to_two_seconds", 0);
+	const char* lsb_name = getenv("ODW_LSB_NAME");
+if (lsb_name == NULL || lsb_name[0] == '\0')
+	lsb_name = "crc";
+
+LSB_Init(lsb_name, 0);
+LSB_Set_Rparam_int("repeats_to_two_seconds", 0);
 
 	LSB_Set_Rparam_string("region", "runtime_initialization");
 	LSB_Res();
