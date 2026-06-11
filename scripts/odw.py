@@ -23,6 +23,11 @@ APP_PATHS = {
         "opencl": "combinational-logic/crc/opencl",
         "hip": "combinational-logic/crc/hip",
     },
+    "lud": {
+        "cuda": "dense-linear-algebra/lud/cuda",
+        "opencl": "dense-linear-algebra/lud/opencl",
+        "hip": "dense-linear-algebra/lud/hip",
+    },
 }
 
 COMPILERS = {

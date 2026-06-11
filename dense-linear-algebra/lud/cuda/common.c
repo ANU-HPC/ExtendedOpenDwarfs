@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <math.h>
-#include "../../include/portable_memory.h"
+#include <include/portable_memory.h>
 #include "common.h"
 
 #define AOCL_ALIGNMENT 64

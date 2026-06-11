@@ -51,7 +51,7 @@ PLOT_APP="$APP"
 PLOT_BACKEND="$BACKEND"
 
 case "$APP" in
-  all) APP_LIST=(nqueens crc) ;;
+  all) APP_LIST=(nqueens crc lud) ;;
   *) APP_LIST=("$APP") ;;
 esac
 
@@ -88,12 +88,24 @@ run_one() {
     SIZE="$size" \
     ITERS="$ITERS"
 
-  "$@" make run \
+  "$@" make build \
     APP="$APP" \
     BACKEND="$backend" \
     COMPILER="$compiler" \
     SIZE="$size" \
     ITERS="$ITERS"
+
+  for ((iter = 1; iter <= ITERS; iter++)); do
+    echo
+    echo "==> APP=$APP SIZE=$size BACKEND=$backend COMPILER=$compiler iter=$iter/$ITERS"
+
+    "$@" scripts/odw.py run \
+      --app "$APP" \
+      --backend "$backend" \
+      --compiler "$compiler" \
+      --size "$size" \
+      --iterations 1
+  done
 }
 
 prepare_app() {
@@ -193,6 +205,6 @@ if [[ "$DO_PLOTS" == "1" ]]; then
     results/plots \
     --app "$PLOT_APP" \
     --backend "$PLOT_BACKEND" \
-  tar -czf results/plots.tar.gz -C results plots
+  tar -cvf results/plots.tar.gz results/plots/*
   echo "Done. Plots should be in ./results/plots"
 fi
