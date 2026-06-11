@@ -26,7 +26,8 @@ LDFLAGS ?=
 LDLIBS ?=
 
 CRC_COMMON_SRC := ../common/crc_formats.c
-CRC_COMMON_OBJ := crc_formats.o
+
+BUILD_DIR ?= build/cuda
 
 INCLUDES := \
 	-I. \
@@ -36,6 +37,11 @@ INCLUDES := \
 	-I$(TOP_LEVEL)/include \
 	-I$(LSB_INSTALL_ROOT)/include \
 	-I$(LSB_INSTALL_ROOT)/lib/include
+
+CUDA_OBJ := \
+	$(BUILD_DIR)/crc_algo.o \
+	$(BUILD_DIR)/crc_kernel.o \
+	$(BUILD_DIR)/crc_formats.o
 
 N ?=
 ARGS ?=
@@ -53,21 +59,40 @@ help:
 	@echo "  make crc-cuda-scale-nvidia"
 	@echo "  make crc-cuda-scale-amd"
 
-$(CRC_COMMON_OBJ): $(CRC_COMMON_SRC)
+$(BUILD_DIR):
+	mkdir -p $@
+
+$(BUILD_DIR)/crc_formats.o: $(CRC_COMMON_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(INCLUDES) -c $< -o $@
 
-crc-cuda-nvcc: crc_algo.cu crc_kernel.cu $(CRC_COMMON_OBJ)
+$(BUILD_DIR)/crc_algo.o: crc_algo.cu | $(BUILD_DIR)
 	$(CUDA_NVCC) \
 		$(NVCCFLAGS) \
 		$(CPPFLAGS) \
 		$(INCLUDES) \
 		-arch=sm_$(CUDA_ARCH) \
+		-c $< \
+		-o $@
+
+$(BUILD_DIR)/crc_kernel.o: crc_kernel.cu | $(BUILD_DIR)
+	$(CUDA_NVCC) \
+		$(NVCCFLAGS) \
+		$(CPPFLAGS) \
+		$(INCLUDES) \
+		-arch=sm_$(CUDA_ARCH) \
+		-c $< \
+		-o $@
+
+crc-cuda-nvcc: $(CUDA_OBJ)
+	$(CUDA_NVCC) \
+		$(NVCCFLAGS) \
+		-arch=sm_$(CUDA_ARCH) \
 		-o $@ \
-		crc_algo.cu crc_kernel.cu $(CRC_COMMON_OBJ) \
+		$(CUDA_OBJ) \
 		$(LDFLAGS) \
 		$(LDLIBS)
 
-crc-cuda-scale-nvidia: crc_algo.cu crc_kernel.cu $(CRC_COMMON_OBJ)
+crc-cuda-scale-nvidia: crc_algo.cu crc_kernel.cu $(BUILD_DIR)/crc_formats.o
 	source "$(SCALE_ROOT)/bin/scaleenv" sm_$(CUDA_ARCH) && \
 	nvcc \
 		$(if $(CUDA_PATH),--cuda-path="$(CUDA_PATH)") \
@@ -76,18 +101,18 @@ crc-cuda-scale-nvidia: crc_algo.cu crc_kernel.cu $(CRC_COMMON_OBJ)
 		$(CPPFLAGS) \
 		$(INCLUDES) \
 		-o $@ \
-		crc_algo.cu crc_kernel.cu $(CRC_COMMON_OBJ) \
+		crc_algo.cu crc_kernel.cu $(BUILD_DIR)/crc_formats.o \
 		$(LDFLAGS) \
 		$(LDLIBS)
 
-crc-cuda-scale-amd: crc_algo.cu crc_kernel.cu $(CRC_COMMON_OBJ)
+crc-cuda-scale-amd: crc_algo.cu crc_kernel.cu $(BUILD_DIR)/crc_formats.o
 	source "$(SCALE_ROOT)/bin/scaleenv" $(HIP_ARCH) && \
 	nvcc \
 		$(NVCCFLAGS) \
 		$(CPPFLAGS) \
 		$(INCLUDES) \
 		-o $@ \
-		crc_algo.cu crc_kernel.cu $(CRC_COMMON_OBJ) \
+		crc_algo.cu crc_kernel.cu $(BUILD_DIR)/crc_formats.o \
 		$(LDFLAGS) \
 		$(LDLIBS)
 
@@ -109,8 +134,8 @@ run-crc-cuda-scale-amd: crc-cuda-scale-amd
 	$(RUN_ENV) "$(CURDIR)/crc-cuda-scale-amd" $(ARGS) $(N)
 
 clean:
+	rm -rf build
 	rm -f \
 		crc-cuda-nvcc \
 		crc-cuda-scale-nvidia \
-		crc-cuda-scale-amd \
-		$(CRC_COMMON_OBJ)
+		crc-cuda-scale-amd

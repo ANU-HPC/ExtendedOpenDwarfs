@@ -22,7 +22,8 @@ OCD_OPTS_SRC ?= $(TOP_LEVEL)/opts/opts.c
 OCD_RDTSC_SRC ?= $(TOP_LEVEL)/include/rdtsc.c
 
 CRC_COMMON_SRC := ../common/crc_formats.c
-CREATECRC_SRC := ../test/createcrc.c
+
+BUILD_DIR ?= build/opencl
 
 INCLUDES := \
 	-I. \
@@ -35,45 +36,43 @@ INCLUDES := \
 	-I$(LSB_INSTALL_ROOT)/lib/include
 
 CRC_OBJ := \
-	crc_algo.o \
-	crc_formats.o \
-	common_args.o \
-	opts.o \
-	rdtsc.o
-
-CREATECRC_OBJ := \
-	createcrc.o \
-	createcrc_formats.o
+	$(BUILD_DIR)/crc_algo.o \
+	$(BUILD_DIR)/crc_formats.o \
+	$(BUILD_DIR)/common_args.o \
+	$(BUILD_DIR)/opts.o \
+	$(BUILD_DIR)/rdtsc.o
 
 N ?=
 ARGS ?=
 RUN_ENV ?=
 
-.PHONY: all clean help crc-opencl createcrc run-crc-opencl
+.PHONY: all clean help crc-opencl run-crc-opencl
 
-all: crc-opencl createcrc
+all: crc-opencl
 
 help:
 	@echo "Build targets:"
 	@echo "  make crc-opencl"
-	@echo "  make createcrc"
 	@echo ""
 	@echo "Run targets:"
 	@echo "  make run-crc-opencl"
 
-crc_algo.o: crc_algo.c
+$(BUILD_DIR):
+	mkdir -p $@
+
+$(BUILD_DIR)/crc_algo.o: crc_algo.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(OPENCL_CPPFLAGS) $(CRC_CPPFLAGS) $(INCLUDES) -c $< -o $@
 
-crc_formats.o: $(CRC_COMMON_SRC)
+$(BUILD_DIR)/crc_formats.o: $(CRC_COMMON_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(OPENCL_CPPFLAGS) $(CRC_CPPFLAGS) $(INCLUDES) -c $< -o $@
 
-common_args.o: $(OCD_COMMON_ARGS_SRC)
+$(BUILD_DIR)/common_args.o: $(OCD_COMMON_ARGS_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(OPENCL_CPPFLAGS) $(INCLUDES) -c $< -o $@
 
-opts.o: $(OCD_OPTS_SRC)
+$(BUILD_DIR)/opts.o: $(OCD_OPTS_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(INCLUDES) -c $< -o $@
 
-rdtsc.o: $(OCD_RDTSC_SRC)
+$(BUILD_DIR)/rdtsc.o: $(OCD_RDTSC_SRC) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(OPENCL_CPPFLAGS) $(INCLUDES) -c $< -o $@
 
 crc-opencl: $(CRC_OBJ) crc_kernel.cl
@@ -88,14 +87,6 @@ crc-opencl: $(CRC_OBJ) crc_kernel.cl
 		$(OPENCL_LDLIBS) \
 		-lm
 
-createcrc: $(CREATECRC_OBJ)
-	$(CC) \
-		$(CFLAGS) \
-		$(EXE_LDFLAGS) \
-		-o $@ \
-		$(CREATECRC_OBJ) \
-		-lm
-
 run-crc-opencl: crc-opencl
 	mkdir -p "$(TOP_LEVEL)/results"
 	cp crc_kernel.cl "$(TOP_LEVEL)/results/crc_kernel.cl"
@@ -103,8 +94,5 @@ run-crc-opencl: crc-opencl
 	$(RUN_ENV) "$(CURDIR)/crc-opencl" $(ARGS) $(N)
 
 clean:
-	rm -f \
-		crc-opencl \
-		createcrc \
-		$(CRC_OBJ) \
-		$(CREATECRC_OBJ)
+	rm -rf build
+	rm -f crc-opencl

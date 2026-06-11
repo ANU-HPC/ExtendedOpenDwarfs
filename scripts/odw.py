@@ -21,6 +21,7 @@ APP_PATHS = {
     "crc": {
         "cuda": "combinational-logic/crc/cuda",
         "opencl": "combinational-logic/crc/opencl",
+        "hip": "combinational-logic/crc/hip",
     },
 }
 
