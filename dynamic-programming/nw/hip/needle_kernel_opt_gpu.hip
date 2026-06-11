@@ -1,0 +1,248 @@
+#include <hip/hip_runtime.h>
+
+#define BLOCK_SIZE 16
+
+__device__ __forceinline__
+int maximum_opt(int a, int b, int c)
+{
+	int k = (a <= b) ? b : a;
+	return (k <= c) ? c : k;
+}
+
+extern "C" __global__
+void needle_hip_shared_opt_1(
+	int* referrence,
+	int* matrix_hip,
+	int cols,
+	int penalty,
+	int i,
+	int block_width)
+{
+	int bx = blockIdx.x;
+	int tx = threadIdx.x;
+
+	int b_index_x = bx;
+	int b_index_y = i - 1 - bx;
+
+	int index =
+		cols * BLOCK_SIZE * b_index_y +
+		BLOCK_SIZE * b_index_x +
+		tx +
+		(cols + 1);
+
+	int index_n =
+		cols * BLOCK_SIZE * b_index_y +
+		BLOCK_SIZE * b_index_x +
+		tx +
+		1;
+
+	int index_w =
+		cols * BLOCK_SIZE * b_index_y +
+		BLOCK_SIZE * b_index_x +
+		cols;
+
+	int index_nw =
+		cols * BLOCK_SIZE * b_index_y +
+		BLOCK_SIZE * b_index_x;
+
+	__shared__ int temp[BLOCK_SIZE + 1][BLOCK_SIZE + 1];
+	__shared__ int ref[BLOCK_SIZE][BLOCK_SIZE];
+
+	if (tx == 0) {
+		temp[tx][0] = matrix_hip[index_nw];
+	}
+
+	for (int ty = 0; ty < BLOCK_SIZE; ty++) {
+		ref[ty][tx] = referrence[index + cols * ty];
+	}
+
+	__syncthreads();
+
+	temp[tx + 1][0] = matrix_hip[index_w + cols * tx];
+
+	__syncthreads();
+
+	temp[0][tx + 1] = matrix_hip[index_n];
+
+	__syncthreads();
+
+	for (int m = 0; m < BLOCK_SIZE; m++) {
+		if (tx <= m) {
+			int t_index_x = tx + 1;
+			int t_index_y = m - tx + 1;
+
+			temp[t_index_y][t_index_x] =
+				maximum_opt(
+					temp[t_index_y - 1][t_index_x - 1] +
+						ref[t_index_y - 1][t_index_x - 1],
+					temp[t_index_y][t_index_x - 1] - penalty,
+					temp[t_index_y - 1][t_index_x] - penalty);
+		}
+
+		__syncthreads();
+	}
+
+	for (int m = BLOCK_SIZE - 2; m >= 0; m--) {
+		if (tx <= m) {
+			int t_index_x = tx + BLOCK_SIZE - m;
+			int t_index_y = BLOCK_SIZE - tx;
+
+			temp[t_index_y][t_index_x] =
+				maximum_opt(
+					temp[t_index_y - 1][t_index_x - 1] +
+						ref[t_index_y - 1][t_index_x - 1],
+					temp[t_index_y][t_index_x - 1] - penalty,
+					temp[t_index_y - 1][t_index_x] - penalty);
+		}
+
+		__syncthreads();
+	}
+
+	for (int ty = 0; ty < BLOCK_SIZE; ty++) {
+		matrix_hip[index + ty * cols] = temp[ty + 1][tx + 1];
+	}
+}
+
+extern "C" __global__
+void needle_hip_shared_opt_2(
+	int* referrence,
+	int* matrix_hip,
+	int cols,
+	int penalty,
+	int i,
+	int block_width)
+{
+	int bx = blockIdx.x;
+	int tx = threadIdx.x;
+
+	int b_index_x = bx + block_width - i;
+	int b_index_y = block_width - bx - 1;
+
+	int index =
+		cols * BLOCK_SIZE * b_index_y +
+		BLOCK_SIZE * b_index_x +
+		tx +
+		(cols + 1);
+
+	int index_n =
+		cols * BLOCK_SIZE * b_index_y +
+		BLOCK_SIZE * b_index_x +
+		tx +
+		1;
+
+	int index_w =
+		cols * BLOCK_SIZE * b_index_y +
+		BLOCK_SIZE * b_index_x +
+		cols;
+
+	int index_nw =
+		cols * BLOCK_SIZE * b_index_y +
+		BLOCK_SIZE * b_index_x;
+
+	__shared__ int temp[BLOCK_SIZE + 1][BLOCK_SIZE + 1];
+	__shared__ int ref[BLOCK_SIZE][BLOCK_SIZE];
+
+	for (int ty = 0; ty < BLOCK_SIZE; ty++) {
+		ref[ty][tx] = referrence[index + cols * ty];
+	}
+
+	__syncthreads();
+
+	if (tx == 0) {
+		temp[tx][0] = matrix_hip[index_nw];
+	}
+
+	temp[tx + 1][0] = matrix_hip[index_w + cols * tx];
+
+	__syncthreads();
+
+	temp[0][tx + 1] = matrix_hip[index_n];
+
+	__syncthreads();
+
+	for (int m = 0; m < BLOCK_SIZE; m++) {
+		if (tx <= m) {
+			int t_index_x = tx + 1;
+			int t_index_y = m - tx + 1;
+
+			temp[t_index_y][t_index_x] =
+				maximum_opt(
+					temp[t_index_y - 1][t_index_x - 1] +
+						ref[t_index_y - 1][t_index_x - 1],
+					temp[t_index_y][t_index_x - 1] - penalty,
+					temp[t_index_y - 1][t_index_x] - penalty);
+		}
+
+		__syncthreads();
+	}
+
+	for (int m = BLOCK_SIZE - 2; m >= 0; m--) {
+		if (tx <= m) {
+			int t_index_x = tx + BLOCK_SIZE - m;
+			int t_index_y = BLOCK_SIZE - tx;
+
+			temp[t_index_y][t_index_x] =
+				maximum_opt(
+					temp[t_index_y - 1][t_index_x - 1] +
+						ref[t_index_y - 1][t_index_x - 1],
+					temp[t_index_y][t_index_x - 1] - penalty,
+					temp[t_index_y - 1][t_index_x] - penalty);
+		}
+
+		__syncthreads();
+	}
+
+	for (int ty = 0; ty < BLOCK_SIZE; ty++) {
+		matrix_hip[index + ty * cols] = temp[ty + 1][tx + 1];
+	}
+}
+
+extern "C" hipError_t needle_launch_hip_shared_1(
+	int* referrence,
+	int* matrix_hip,
+	int cols,
+	int penalty,
+	int i,
+	int block_width,
+	hipStream_t stream)
+{
+	hipLaunchKernelGGL(
+		needle_hip_shared_opt_1,
+		dim3(i),
+		dim3(BLOCK_SIZE),
+		0,
+		stream,
+		referrence,
+		matrix_hip,
+		cols,
+		penalty,
+		i,
+		block_width);
+
+	return hipGetLastError();
+}
+
+extern "C" hipError_t needle_launch_hip_shared_2(
+	int* referrence,
+	int* matrix_hip,
+	int cols,
+	int penalty,
+	int i,
+	int block_width,
+	hipStream_t stream)
+{
+	hipLaunchKernelGGL(
+		needle_hip_shared_opt_2,
+		dim3(i),
+		dim3(BLOCK_SIZE),
+		0,
+		stream,
+		referrence,
+		matrix_hip,
+		cols,
+		penalty,
+		i,
+		block_width);
+
+	return hipGetLastError();
+}

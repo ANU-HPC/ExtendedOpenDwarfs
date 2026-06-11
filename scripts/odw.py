@@ -28,6 +28,11 @@ APP_PATHS = {
         "opencl": "dense-linear-algebra/lud/opencl",
         "hip": "dense-linear-algebra/lud/hip",
     },
+    "needle": {
+        "cuda": "dynamic-programming/nw/cuda",
+        "opencl": "dynamic-programming/nw/opencl",
+        "hip": "dynamic-programming/nw/hip",
+    },
 }
 
 COMPILERS = {

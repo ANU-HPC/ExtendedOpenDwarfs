@@ -51,7 +51,7 @@ PLOT_APP="$APP"
 PLOT_BACKEND="$BACKEND"
 
 case "$APP" in
-  all) APP_LIST=(nqueens crc lud) ;;
+  all) APP_LIST=(nw lud crc nqueens) ;;
   *) APP_LIST=("$APP") ;;
 esac
 
