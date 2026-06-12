@@ -33,6 +33,11 @@ APP_PATHS = {
         "opencl": "dynamic-programming/nw/opencl",
         "hip": "dynamic-programming/nw/hip",
     },
+    "swat": {
+        "cuda": "dynamic-programming/swat/cuda",
+        "opencl": "dynamic-programming/swat/opencl",
+        "hip": "dynamic-programming/swat/hip",
+    },
 }
 
 COMPILERS = {
