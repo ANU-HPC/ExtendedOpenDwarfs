@@ -8,7 +8,7 @@
 
 ExtendedOpenDwarfs is a modern heterogeneous benchmarking suite derived from the original OpenDwarfs project developed at Virginia Tech and the NSF Center for High-Performance Reconfigurable Computing (CHREC).
 
-The original OpenDwarfs benchmark suite provided one of the first comprehensive OpenCL benchmark collections based on the [Berkeley Dwarfs](http://view.eecs.berkeley.edu/wiki/Dwarf_Mine), enabling performance characterization across CPUs, GPUs, FPGAs, and accelerator architectures.
+The original OpenDwarfs benchmark suite provided one of the first comprehensive OpenCL benchmark collections based on the [Berkeley Dwarfs](https://www2.eecs.berkeley.edu/Pubs/TechRpts/2006/Archive/EECS-2006-183.pdf), enabling performance characterization across CPUs, GPUs, FPGAs, and accelerator architectures.
 
 This repository extends that foundation through two major generations of development:
 
