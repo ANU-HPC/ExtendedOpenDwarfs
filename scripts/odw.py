@@ -38,6 +38,16 @@ APP_PATHS = {
         "opencl": "dynamic-programming/swat/opencl",
         "hip": "dynamic-programming/swat/hip",
     },
+    "tdm": {
+        "cuda": "finite-state-machine/tdm/cuda",
+        "opencl": "finite-state-machine/tdm/opencl",
+        "hip": "finite-state-machine/tdm/hip",
+    },
+    "bwa_hmm": {
+        "cuda": "graphical-models/hmm/cuda",
+        "opencl": "graphical-models/hmm/opencl",
+        "hip": "graphical-models/hmm/hip",
+    },
 }
 
 COMPILERS = {
@@ -257,7 +267,8 @@ def run(args):
         else:
             final_args = f"{extra_args} {problem_args}".strip()
 
-        lsb_name = f"{app['name']}_{args.backend}_{args.compiler}".replace("-", "_")
+        lsb_app_name = app_name
+        lsb_name = f"{lsb_app_name}_{args.backend}_{args.compiler}".replace("-", "_")
 
         for i in range(args.iterations):
             print(
