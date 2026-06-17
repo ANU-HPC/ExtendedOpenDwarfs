@@ -23,16 +23,18 @@ Options:
   --full             Run tiny, small, medium, and large
   --sweep            Alias for --full
   --no-plots         Skip plot generation
-  --plot-mode MODE   light|full, default: light
+  --plots-only       Only regenerate plots from existing results
   --help             Show this help
 
 Environment:
   APP=crc BACKEND=cuda SIZE=tiny ITERS=10 ./runner.sh
+  APP=all BACKEND=all ./runner.sh --plots-only
   MODE=full ./runner.sh
 EOF
 }
 
 DO_PLOTS=1
+PLOTS_ONLY=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -42,6 +44,7 @@ while [[ $# -gt 0 ]]; do
     --iters) ITERS="$2"; shift 2 ;;
     --full|--sweep) MODE="full"; shift ;;
     --no-plots) DO_PLOTS=0; shift ;;
+    --plots-only) PLOTS_ONLY=1; DO_PLOTS=1; shift ;;
     --help|-h) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage; exit 1 ;;
   esac
@@ -49,6 +52,37 @@ done
 
 PLOT_APP="$APP"
 PLOT_BACKEND="$BACKEND"
+
+generate_plots() {
+  echo
+  echo "Generating plots in ./results/plots"
+  echo "Plot filter: app=$PLOT_APP backend=$PLOT_BACKEND"
+
+  rm -rf results/plots
+  mkdir -p results/plots
+
+  pixi run Rscript scripts/plot_lsb.R \
+    results \
+    results/plots \
+    --app "$PLOT_APP" \
+    --backend "$PLOT_BACKEND"
+
+  local plot_tarball="results/plots.tar.gz"
+  rm -f "$plot_tarball"
+
+  if [[ -d results/plots ]] && find results/plots -mindepth 1 -print -quit | grep -q .; then
+    tar -czf "$plot_tarball" -C results plots
+    echo "Done. Plots should be in ./results/plots"
+    echo "Done. Plot archive written to ./$plot_tarball"
+  else
+    echo "Warning: results/plots is empty; not creating plot archive" >&2
+  fi
+}
+
+if [[ "$PLOTS_ONLY" == "1" ]]; then
+  generate_plots
+  exit 0
+fi
 
 case "$APP" in
   all) APP_LIST=(bfs hmm swat nw lud crc nqueens) ;;
@@ -198,13 +232,5 @@ echo
 echo "Done. Results should be in ./results/"
 
 if [[ "$DO_PLOTS" == "1" ]]; then
-  echo "Generating plots in ./results/plots"
-
-  pixi run Rscript scripts/plot_lsb.R \
-    results \
-    results/plots \
-    --app "$PLOT_APP" \
-    --backend "$PLOT_BACKEND" \
-  tar -cvf results/plots.tar.gz results/plots/*
-  echo "Done. Plots should be in ./results/plots"
+  generate_plots
 fi

@@ -82,9 +82,17 @@ dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 backend_colours <- c(
   "cuda/nvcc" = "#76B900",
   "cuda/scale-nvidia" = "#3F7F00",
-  "cuda/scale-amd" = "#B00020",
   "hip/hipcc" = "#ED1C24",
+  "cuda/scale-amd" = "#B00020",
   "opencl/opencl" = "#1F77B4"
+)
+
+implementation_levels <- c(
+  "cuda/nvcc",
+  "cuda/scale-nvidia",
+  "hip/hipcc",
+  "cuda/scale-amd",
+  "opencl/opencl"
 )
 
 region_class_levels <- c(
@@ -219,6 +227,7 @@ parse_lsb_table_fast <- function(lines, header_idx, meta, system, runtime_s) {
   time_pos <- match("time", header)
   id_pos <- match("id", header)
   overhead_pos <- match("overhead", header)
+  repeat_pos <- match("repeats_to_two_seconds", header)
 
   if (is.na(region_pos) || is.na(time_pos)) {
     return(NULL)
@@ -255,6 +264,13 @@ parse_lsb_table_fast <- function(lines, header_idx, meta, system, runtime_s) {
     NA_real_
   }
 
+  repeat_id <- if (!is.na(repeat_pos)) {
+    suppressWarnings(as.integer(fields[keep, repeat_pos]))
+  } else {
+    rep(0L, sum(keep))
+  }
+  repeat_id[is.na(repeat_id)] <- 0L
+
   region <- fields[keep, region_pos]
 
   tibble(
@@ -267,6 +283,7 @@ parse_lsb_table_fast <- function(lines, header_idx, meta, system, runtime_s) {
     run = meta$run,
     region = region,
     region_class = classify_region(region),
+    repeat_id = repeat_id,
     id = id,
     time_us = time_us[keep],
     overhead = overhead,
@@ -400,10 +417,26 @@ make_benchmark_plots <- function(bench_df, bench_out) {
 
   region_class_breakdown <- bench_df |>
     group_by(system, benchmark, implementation, run, region_class) |>
-    summarise(time_us = sum(time_us), .groups = "drop") |>
+    summarise(
+      time_us = sum(time_us),
+      internal_repeats = n_distinct(repeat_id),
+      .groups = "drop"
+    ) |>
     group_by(system, benchmark, implementation, region_class) |>
-    summarise(time_us = median(time_us), .groups = "drop") |>
+    summarise(
+      time_us = median(time_us),
+      internal_repeats = median(internal_repeats),
+      .groups = "drop"
+    ) |>
     mutate(region_class = factor(region_class, levels = region_class_levels))
+
+  region_class_labels <- region_class_breakdown |>
+    group_by(system, benchmark, implementation) |>
+    summarise(
+      time_us = sum(time_us),
+      internal_repeats = median(internal_repeats),
+      .groups = "drop"
+    )
 
   region_class_plot <- ggplot(
     region_class_breakdown,
@@ -466,22 +499,67 @@ make_benchmark_plots <- function(bench_df, bench_out) {
 
   actual_region_breakdown <- bench_df |>
     group_by(system, benchmark, implementation, run, region) |>
-    summarise(time_us = sum(time_us), .groups = "drop") |>
+    summarise(
+      time_us = sum(time_us),
+      internal_repeats = n_distinct(repeat_id),
+      .groups = "drop"
+    ) |>
     group_by(system, benchmark, implementation, region) |>
-    summarise(time_us = median(time_us), .groups = "drop") |>
+    summarise(
+      time_us = median(time_us),
+      internal_repeats = median(internal_repeats),
+      .groups = "drop"
+    ) |>
     arrange(system, benchmark, implementation, desc(time_us))
+  actual_region_labels <- bench_df |>
+    filter(region_class == "Kernel") |>
+    group_by(system, benchmark, implementation, run) |>
+    summarise(kernel_runs = n_distinct(id), .groups = "drop") |>
+    group_by(system, benchmark, implementation) |>
+    summarise(kernel_runs = median(kernel_runs), .groups = "drop") |>
+    left_join(
+      actual_region_breakdown |>
+        group_by(system, benchmark, implementation) |>
+        summarise(time_us = sum(time_us), .groups = "drop"),
+      by = c("system", "benchmark", "implementation")
+    ) |>
+    mutate(
+      label = case_when(
+        kernel_runs <= 1 ~ NA_character_,
+        kernel_runs >= 1000 ~ paste0(
+          "\u00d7",
+          format(round(kernel_runs / 100) / 10, nsmall = 1),
+          "k"
+        ),
+        TRUE ~ paste0("\u00d7", format(round(kernel_runs)))
+      )
+    ) |>
+    filter(!is.na(label))
+
 
   actual_region_plot <- ggplot(
     actual_region_breakdown,
     aes(x = implementation, y = time_us / 1000, fill = region)
   ) +
     geom_col() +
+    geom_text(
+      data = actual_region_labels,
+      aes(
+        x = implementation,
+        y = time_us / 1000,
+        label = label
+      ),
+      inherit.aes = FALSE,
+      vjust = -0.25,
+      size = 3
+    ) +
     facet_wrap(~system, scales = "free_x") +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.14))) +
     labs(
       x = NULL,
-      y = "Median measured region time (ms)",
+      y = "Median measured region time over ~2 s window (ms)",
       fill = "Region",
-      title = paste0(bench_name, ": actual region breakdown")
+      title = paste0(bench_name, ": actual region breakdown over stabilized ~2 s window")
     ) +
     theme_pub()
 
@@ -644,7 +722,14 @@ if (nrow(df) == 0) {
 
 df <- df |>
   mutate(
-    implementation = factor(implementation, levels = sort(unique(implementation))),
+    implementation = factor(
+      implementation,
+      levels = c(
+        implementation_levels,
+        setdiff(sort(unique(as.character(implementation))),
+                implementation_levels)
+      )
+    ),
     region_class = factor(region_class, levels = region_class_levels)
   )
 
@@ -656,17 +741,78 @@ log_msg(
   n_distinct(df$system)
 )
 
-for (bench in sort(unique(df$benchmark))) {
-  bench_df <- df |>
-    filter(benchmark == bench)
+plot_benchmarks_with_progress <- function(df, out_dir) {
+  benches <- sort(unique(df$benchmark))
+  n_benches <- length(benches)
 
-  make_benchmark_plots(
-    bench_df,
-    file.path(out_dir, bench)
+  if (n_benches == 0L) {
+    return(0L)
+  }
+
+  requested <- as.integer(Sys.getenv("PLOT_LSB_PLOT_JOBS", Sys.getenv("PLOT_LSB_JOBS", "32")))
+  if (is.na(requested) || requested <= 0L) {
+    requested <- 32L
+  }
+
+  cores <- parallel::detectCores(logical = FALSE)
+  if (is.na(cores) || cores <= 0L) {
+    cores <- 1L
+  }
+
+  n_workers <- max(1L, min(requested, cores, n_benches))
+
+  log_msg(
+    "generating plots for %d benchmark(s) with %d worker(s)",
+    n_benches,
+    n_workers
   )
+
+  plot_one <- function(bench) {
+    bench_df <- df |>
+      filter(benchmark == bench)
+
+    make_benchmark_plots(
+      bench_df,
+      file.path(out_dir, bench)
+    )
+
+    bench
+  }
+
+  pb <- txtProgressBar(min = 0, max = n_benches, style = 3)
+  done <- 0L
+
+  batches <- split(benches, ceiling(seq_along(benches) / n_workers))
+
+  for (batch in batches) {
+    batch_result <- if (n_workers <= 1L || length(batch) <= 1L) {
+      lapply(batch, plot_one)
+    } else {
+      parallel::mclapply(
+        batch,
+        plot_one,
+        mc.cores = min(n_workers, length(batch)),
+        mc.preschedule = FALSE
+      )
+    }
+
+    for (result in batch_result) {
+      if (inherits(result, "try-error")) {
+        close(pb)
+        stop(result)
+      }
+
+      done <- done + 1L
+      setTxtProgressBar(pb, done)
+    }
+  }
+
+  close(pb)
+  n_benches
 }
 
-n_plots <- length(unique(df$benchmark))
+n_plots <- plot_benchmarks_with_progress(df, out_dir)
+
 log_msg(
   "generated full bounded plot set for %d benchmark(s) in %.2fs",
   n_plots,
