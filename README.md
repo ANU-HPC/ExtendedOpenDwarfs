@@ -137,33 +137,6 @@ Availability varies by benchmark and platform.
 
 ---
 
-## Benchmark Status
-
-### Stable
-
-- gem
-
-### Beta
-
-- bfs
-- cfd
-- crc
-- fft
-- kmeans
-- lud
-- nw
-- spmv
-- srad
-- swat
-- bwa_hmm
-- nqueens
-
-### Alpha
-
-- tdm
-
----
-
 # Installation
 
 ## Clone Repository

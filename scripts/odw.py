@@ -48,6 +48,11 @@ APP_PATHS = {
         "opencl": "graphical-models/hmm/opencl",
         "hip": "graphical-models/hmm/hip",
     },
+    "bfs": {
+        "cuda": "graph-traversal/bfs/cuda",
+        "opencl": "graph-traversal/bfs/opencl",
+        "hip": "graph-traversal/bfs/hip",
+    },
 }
 
 COMPILERS = {
