@@ -1,0 +1,3 @@
+build/
+kmeans-hip-hipcc
+*.o

@@ -1,0 +1,5 @@
+build/
+kmeans-cuda-nvcc
+kmeans-cuda-scale-nvidia
+kmeans-cuda-scale-amd
+*.o

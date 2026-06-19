@@ -53,6 +53,11 @@ APP_PATHS = {
         "opencl": "graph-traversal/bfs/opencl",
         "hip": "graph-traversal/bfs/hip",
     },
+    "kmeans": {
+        "cuda": "mapreduce/kmeans/cuda",
+        "opencl": "mapreduce/kmeans/opencl",
+        "hip": "mapreduce/kmeans/hip",
+    },
 }
 
 COMPILERS = {

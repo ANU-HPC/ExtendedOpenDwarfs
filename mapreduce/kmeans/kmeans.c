@@ -183,7 +183,11 @@ int setup(int argc, char **argv) {
     }
 	if (filename == 0 && generateFeaturespace == false) usage(argv[0]);
 
-    LSB_Init("kmeans", 0);
+    const char* lsb_name = getenv("ODW_LSB_NAME");
+	if (lsb_name == NULL || lsb_name[0] == '\0') {
+		lsb_name = "kmeans";
+	}
+	LSB_Init(lsb_name, 0);
     LSB_Set_Rparam_int("iteration_number_hint_until_convergence", 0);
     LSB_Set_Rparam_int("repeats_to_two_seconds", 0);
     LSB_Set_Rparam_string("region", "host_side_setup");
@@ -375,6 +379,21 @@ int setup(int argc, char **argv) {
 	}
 
     LSB_Finalize();
+
+    double checksum = 0.0;
+    int checksum_nclusters = best_nclusters > 0 ? best_nclusters : min_nclusters;
+
+    if (cluster_centres != NULL) {
+        for (i = 0; i < checksum_nclusters; i++) {
+            for (j = 0; j < nfeatures; j++) {
+                checksum += cluster_centres[i][j] *
+                            (double)(i + 1) *
+                            (double)(j + 1);
+            }
+        }
+    }
+
+    printf("KMEANS_CHECKSUM nclusters=%d value=%0.17e\n", checksum_nclusters, checksum);
 
 	/* free up memory */
 #ifndef __FPGA__
