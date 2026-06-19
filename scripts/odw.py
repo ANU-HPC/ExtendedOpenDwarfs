@@ -258,10 +258,16 @@ def run(args):
 
         if args.size not in app:
             valid = [k for k in ("tiny", "small", "medium", "large", "default") if k in app]
-            raise SystemExit(
+            msg = (
                 f"Application '{app_name}' has no size '{args.size}'. "
                 f"Available sizes: {', '.join(valid)}"
             )
+
+            if os.environ.get("ODW_SKIP_MISSING_SIZE", "0") == "1":
+                print(f"Skipping: {msg}")
+                continue
+
+            raise SystemExit(msg)
 
         problem_args = app[args.size]
         extra_args = os.environ.get("ARGS", "").strip()

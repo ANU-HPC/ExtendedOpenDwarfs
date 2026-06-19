@@ -15,7 +15,7 @@ NVCC ?= $(CUDA_PATH)/bin/nvcc
 NVIDIA_NVCC ?= $(shell command -v nvcc 2>/dev/null || echo $(NVCC))
 CUDA_NVCC ?= $(NVIDIA_NVCC)
 
-SCALE_ROOT ?= $(TOP_LEVEL)/scale-1.7.0-Linux
+SCALE_ROOT ?= $(TOP_LEVEL)/scale-1.7.1-Linux
 
 # ------------------------------------------------------------
 # Device targets

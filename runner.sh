@@ -133,7 +133,7 @@ run_one() {
     echo
     echo "==> APP=$APP SIZE=$size BACKEND=$backend COMPILER=$compiler iter=$iter/$ITERS"
 
-    "$@" scripts/odw.py run \
+    ODW_SKIP_MISSING_SIZE=1 "$@" scripts/odw.py run \
       --app "$APP" \
       --backend "$backend" \
       --compiler "$compiler" \

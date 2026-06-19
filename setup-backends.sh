@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%x}}")" && pwd)"
 HOST="$(hostname -s)"
 export HOST
 export MACHINE="${MACHINE:-$HOST}"
@@ -38,8 +39,26 @@ unset LDLIBS
 export BACKENDS="${BACKENDS:-}"
 export CUDA_DEV_TARGET="${CUDA_DEV_TARGET:-}"
 export HIP_DEV_TARGET="${HIP_DEV_TARGET:-}"
+export SCALE_ROOT="${SCALE_ROOT:-$SCRIPT_DIR/scale-1.7.1-Linux}"
 
 case "$HOST" in
+  trill)
+    # NVIDIA Blackwell + AMD RDNA3
+    export BACKENDS="cuda,hip,opencl"
+    export CUDA_DEV_TARGET="${CUDA_DEV_TARGET:-sm_120}"
+    export HIP_DEV_TARGET="${HIP_DEV_TARGET:-gfx1100}"
+    export MACHINE="Blackwell+RDNA3"
+
+    export NVHPC_ROOT="${NVHPC_ROOT:-/usr/local}"
+    export CUDA_PATH="${CUDA_PATH:-$NVHPC_ROOT/cuda-13.0}"
+
+    export ROCM_PATH="${ROCM_PATH:-/opt/rocm-7.1.0}"
+    export HIP_PATH="${HIP_PATH:-$ROCM_PATH}"
+
+    # Prefer ROCm OpenCL on mixed AMD/NVIDIA hosts unless overridden.
+    export OPENCL_INC_DIR="${OPENCL_INC_DIR:-$ROCM_PATH/include}"
+    export OPENCL_LIB_DIR="${OPENCL_LIB_DIR:-$ROCM_PATH/lib}"    ;;
+
   milan2)
     # Tesla V100-PCIE-32GB
     export BACKENDS="cuda,opencl"
@@ -139,6 +158,8 @@ if [[ "${BACKENDS}" == *"cuda"* ]]; then
   export CUDA_HOME="$CUDA_PATH"
   export CUDA_TOOLKIT_ROOT_PATH="$CUDA_PATH"
 
+  prepend_path "$CUDA_PATH/bin"
+
   if [[ -n "${NVHPC_ROOT:-}" ]]; then
     append_ld_library_path "$NVHPC_ROOT/compilers/lib"
     append_ld_library_path "$NVHPC_ROOT/math_libs/lib64"
@@ -188,10 +209,12 @@ fi
 export CC="${CC:-$(command -v gcc || true)}"
 export CXX="${CXX:-$(command -v g++ || true)}"
 export NVCC="${NVCC:-$(command -v nvcc || true)}"
+export CUDA_NVCC="${CUDA_NVCC:-${NVCC:-$(command -v nvcc || true)}}"
 export HIPCC="${HIPCC:-$(command -v hipcc || true)}"
 
 echo "  MACHINE=$MACHINE"
 echo "  BACKENDS=$BACKENDS"
+echo "  SCALE_ROOT=${SCALE_ROOT:-}"
 echo "  CUDA_DEV_TARGET=${CUDA_DEV_TARGET:-}"
 echo "  CUDA_PATH=${CUDA_PATH:-}"
 echo "  HIP_DEV_TARGET=${HIP_DEV_TARGET:-}"
