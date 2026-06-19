@@ -1,0 +1,3 @@
+build/
+gemnoui-opencl
+*.o

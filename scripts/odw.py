@@ -58,6 +58,11 @@ APP_PATHS = {
         "opencl": "mapreduce/kmeans/opencl",
         "hip": "mapreduce/kmeans/hip",
     },
+    "gemnoui": {
+        "cuda": "n-body-methods/gem/cuda",
+        "opencl": "n-body-methods/gem/opencl",
+        "hip": "n-body-methods/gem/hip",
+    },
 }
 
 COMPILERS = {

@@ -11,14 +11,18 @@
 #include "partitioned_open.h"
 #include "gem.h"
 
+#if defined(OPENCL)
 #include "../../include/common_args.h"
+#endif
 
 using namespace std;
 //extern int n_platform, n_device;
 
 int main (int argc, char **argv)
 {
+#if defined(OPENCL)
 	ocd_init(&argc, &argv, NULL);
+#endif
 	// local variables
 	partitioned_open_struct open_dat;
 	double A(0),
@@ -79,6 +83,7 @@ int main (int argc, char **argv)
 		A = atof((char *)options[A_SPEC_VAL].c_str());
 	}
 
+#if defined(OPENCL)
 	if (flags[P_ID])
 	{
 		n_platform = atoi((char *)options[P_ID_VAL].c_str());
@@ -88,6 +93,7 @@ int main (int argc, char **argv)
 	{
 		n_device = atoi((char *)options[D_ID_VAL].c_str());
 	}
+#endif
 
 	if (flags[PROJ_SPEC])
 	{
@@ -157,6 +163,8 @@ int main (int argc, char **argv)
 			 open_dat.vert
 			);
 	}
+#if defined(OPENCL)
 	ocd_finalize();
+#endif
 	return 0;
 }

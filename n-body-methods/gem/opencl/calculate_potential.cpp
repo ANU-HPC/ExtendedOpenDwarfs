@@ -149,7 +149,11 @@ void calc_potential_single_step(residue *residues,
 	cl_int errcode;
 	ocd_initCL();
 
-    LSB_Init("gem", 0);
+    const char* lsb_name = getenv("ODW_LSB_NAME");
+	if (lsb_name == NULL || lsb_name[0] == '\0') {
+		lsb_name = "gem";
+	}
+	LSB_Init(lsb_name, 0);
     LSB_Set_Rparam_int("number_of_residues",nres);
     LSB_Set_Rparam_int("number_of_vertices",nvert);
     LSB_Set_Rparam_int("repeats_to_two_seconds",0);
@@ -573,7 +577,6 @@ void calc_potential_single_step(residue *residues,
         {
             LSB_Res();
             clSetKernelArg( kernel, 9, sizeof(cl_int), (void *)&    eye);// int eye,
-            fprintf(stdout,"finished first %d of %d\n", eye, nvert);
             /* copy the vert data of the current block to device */
             status = clEnqueueNDRangeKernel(
                     commands,
@@ -659,6 +662,13 @@ void calc_potential_single_step(residue *residues,
 
 	printf("runtime:%llu\n", get_time());
     LSB_Finalize();
+
+    double gem_checksum = 0.0;
+    for (it = 0; it < nvert; it++)
+    {
+        gem_checksum += (double)vert_c[it] * (double)(it + 1);
+    }
+    printf("GEM_CHECKSUM nvert=%d value=%0.17e\n", nvert, gem_checksum);
 
 	for(it = 0; it < nvert; it++)
 	{

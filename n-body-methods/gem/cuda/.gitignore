@@ -1,0 +1,5 @@
+build/
+gemnoui-cuda-nvcc
+gemnoui-cuda-scale-nvidia
+gemnoui-cuda-scale-amd
+*.o
