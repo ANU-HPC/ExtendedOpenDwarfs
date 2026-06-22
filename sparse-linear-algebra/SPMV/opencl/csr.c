@@ -173,15 +173,26 @@ int main(int argc, char** argv)
 	FILE *kernel_fp;
 	char *kernelSource,**kernel_files=NULL,*kernel_file_mode;
 
+	const char* lsb_name = getenv("ODW_LSB_NAME");
+	if (lsb_name == NULL || lsb_name[0] == '\0') {
+		lsb_name = "csr";
+	}
+
+    LSB_Init(lsb_name, 0);
+    LSB_Set_Rparam_int("number_of_matrices", 0);
+    LSB_Set_Rparam_int("workgroup_size", 0);
+    LSB_Set_Rparam_int("execution_number", 0);
+    LSB_Set_Rparam_int("repeats_to_two_seconds", 0);
+
+    LSB_Set_Rparam_string("region", "runtime_initialization");
+    LSB_Res();
+
 	//Does NOT use ocd_init() because we use TIMER_INIT (the 3rd thing in ocd_init) MANY TIMES in LOOOP! (nz-ocl)
 	ocd_parse(&argc, &argv);
 	ocd_check_requirements(NULL);
 	ocd_initCL();
-    LSB_Init("csr", 0);
-    LSB_Set_Rparam_int("number_of_matrices",0);
-    LSB_Set_Rparam_int("workgroup_size",0);
-    LSB_Set_Rparam_int("execution_number",0);
-    LSB_Set_Rparam_int("repeats_to_two_seconds",0);
+
+    LSB_Rec(0);
 
     LSB_Set_Rparam_string("region", "host_side_setup");
     LSB_Res();
@@ -447,7 +458,7 @@ int main(int argc, char** argv)
                             clFinish(write_queue);
                             LSB_Rec(i);
 
-                            LSB_Set_Rparam_string("region","setting_csr_kernel_arguments");
+                            LSB_Set_Rparam_string("region","setting_kernel_arguments");
                             LSB_Res();
                             /* Set the arguments to our compute kernel */
                             global_size = csr[k].num_rows;
@@ -460,7 +471,7 @@ int main(int argc, char** argv)
                             CHKERR(err, "Failed to set kernel arguments!");
                             LSB_Rec(i);
 
-                            LSB_Set_Rparam_string("region", "csr_kernel");
+                            LSB_Set_Rparam_string("region", "spmv_kernel");
                             LSB_Res();
                             /* Enqueue Kernel */
                             err = clEnqueueNDRangeKernel(commands, kernel, 1, NULL, &global_size, &wg_sizes[ii], 1, &y_loc_write[k], &kernel_exec[k]);
@@ -547,6 +558,9 @@ int main(int argc, char** argv)
 #endif
 
 		/* Shutdown and cleanup */
+    LSB_Set_Rparam_string("region", "device_side_buffer_cleanup");
+    LSB_Res();
+
 		for(k=0; k<num_matrices; k++)
 		{
 			err = clReleaseMemObject(csr_ap[k]);
@@ -577,10 +591,38 @@ int main(int argc, char** argv)
 			free(device_out[k]);
 		}
 
+    LSB_Rec(0);
+
+    LSB_Set_Rparam_string("region", "runtime_finalization");
+    LSB_Res();
+
 	clReleaseContext(context);
 	CHKERR(err,"Failed to release context!");
-    
+
+    LSB_Rec(0);
     LSB_Finalize();
+
+    double csr_checksum = 0.0;
+    double csr_abs_checksum = 0.0;
+    unsigned long long csr_values = 0ULL;
+
+    for(k = 0; k < num_matrices; k++)
+    {
+        for(j = 0; j < csr[k].num_rows; j++)
+        {
+            double v = (double)device_out[k][j];
+
+            csr_checksum += v * (double)(csr_values + 1ULL);
+            csr_abs_checksum += fabs(v);
+            csr_values++;
+        }
+    }
+
+    printf("CSR_CHECKSUM matrices=%u values=%llu value=%0.17e abs=%0.17e\n",
+           num_matrices,
+           csr_values,
+           csr_checksum,
+           csr_abs_checksum);
 
 	if(verbosity) printf("Released context\n");
 	free(kernel_files);

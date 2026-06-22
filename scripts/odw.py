@@ -63,6 +63,11 @@ APP_PATHS = {
         "opencl": "n-body-methods/gem/opencl",
         "hip": "n-body-methods/gem/hip",
     },
+    "csr": {
+        "cuda": "sparse-linear-algebra/SPMV/cuda",
+        "opencl": "sparse-linear-algebra/SPMV/opencl",
+        "hip": "sparse-linear-algebra/SPMV/hip",
+    },
 }
 
 COMPILERS = {
@@ -243,6 +248,44 @@ def run_target(app, backend, compiler):
     return f"run-{app['name']}-{get_suffix(backend, compiler)}"
 
 
+def binary_name(app, backend, compiler):
+    return f"{app['name']}-{get_suffix(backend, compiler)}"
+
+
+def run_binary(app_dir, app, backend, compiler, final_args, lsb_name):
+    target = binary_name(app, backend, compiler)
+    exe = app_dir / target
+    if not exe.exists():
+        raise SystemExit(f"Executable does not exist: {exe}")
+
+    results = REPO_ROOT / "results"
+    results.mkdir(exist_ok=True)
+
+    if backend == "opencl":
+        for kernel in app_dir.glob("*.cl"):
+            dst = results / kernel.name
+            dst.write_bytes(kernel.read_bytes())
+
+    env_cmd = f"ODW_LSB_NAME={shlex.quote(lsb_name)} {shlex.quote(str(exe))}"
+    if final_args:
+        env_cmd += " " + final_args
+
+    if backend == "cuda" and compiler.startswith("scale-"):
+        scale_root = os.environ.get("SCALE_ROOT", str(REPO_ROOT / "scale-1.7.1-Linux"))
+
+        if compiler == "scale-amd":
+            target = os.environ.get("HIP_ARCH", os.environ.get("HIP_DEV_TARGET", "gfx942"))
+        else:
+            cuda_arch = os.environ.get("CUDA_ARCH", os.environ.get("CUDA_DEV_TARGET", "sm_70").removeprefix("sm_"))
+            target = f"sm_{cuda_arch}"
+
+        env_cmd = f"source {shlex.quote(scale_root + '/bin/scaleenv')} {shlex.quote(target)} && " + env_cmd
+
+    shell(["bash", "-lc", env_cmd], cwd=results)
+
+
+
+
 def selected_apps(app_arg):
     if app_arg is None or app_arg == "" or app_arg == "all":
         return ["nqueens"]
@@ -297,15 +340,13 @@ def run(args):
                 f"size={args.size} iter={i + 1}/{args.iterations}"
             )
 
-            shell(
-                [
-                    "make",
-                    run_target(app, args.backend, args.compiler),
-                    f"ARGS={final_args}",
-                    "N=",
-                    f"RUN_ENV=ODW_LSB_NAME={lsb_name}",
-                ] + make_vars(args.backend, args.compiler),
-                cwd=app_dir,
+            run_binary(
+                app_dir,
+                app,
+                args.backend,
+                args.compiler,
+                final_args,
+                lsb_name,
             )
 
 

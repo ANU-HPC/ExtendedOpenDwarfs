@@ -1,0 +1,3 @@
+build/
+csr-opencl
+*.o

@@ -1,0 +1,5 @@
+build/
+csr-cuda-nvcc
+csr-cuda-scale-nvidia
+csr-cuda-scale-amd
+*.o
