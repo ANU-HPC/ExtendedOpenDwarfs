@@ -4,10 +4,10 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
-#include "../../include/rdtsc.h"
-#include "../../include/common_args.h"
-#include "../../include/lsb.h"
-#include "../../include/portable_memory.h"
+#include "rdtsc.h"
+#include "common_args.h"
+#include "lsb.h"
+#include "portable_memory.h"
 
 #define AOCL_ALIGNMENT 64
 size_t working_kernel_memory = 0;
@@ -190,8 +190,19 @@ inline void compute_flux_contribution(float* density, float3* momentum, float* d
 int main(int argc, char** argv)
 {
 	ocd_init(&argc, &argv, NULL);
+
+    const char* lsb_name = getenv("ODW_LSB_NAME");
+    if (lsb_name == NULL || lsb_name[0] == '\0') {
+        lsb_name = "cfd";
+    }
+
+    LSB_Init(lsb_name, 0);
+    LSB_Set_Rparam_int("repeats_to_two_seconds", 0);
+
+    LSB_Set_Rparam_string("region", "runtime_initialization");
+    LSB_Res();
 	ocd_initCL();
-    LSB_Init("cfd", 0);
+    LSB_Rec(0);
 
 	cl_int err;
 
@@ -218,6 +229,7 @@ int main(int argc, char** argv)
 
 
 	const char* data_file_name = argv[1];
+    LSB_Set_Rparam_string("input_file", data_file_name);
 
 
 	// set far field conditions and load them into constant memory on the gpu
@@ -292,6 +304,8 @@ int main(int argc, char** argv)
 		file >> nel;
 
 		nelr = block_length*((nel / block_length )+ std::min(1, nel % block_length));
+        LSB_Set_Rparam_int("nel", nel);
+        LSB_Set_Rparam_int("nelr", nelr);
 
 		//float* h_areas = new float[nelr];
 		//int* h_elements_surrounding_elements = new int[nelr*NNB];
@@ -362,13 +376,9 @@ int main(int argc, char** argv)
 
     LSB_Set_Rparam_string("region", "kernel_creation");
     LSB_Res();
-	char* kernel_files;
-	int num_kernels = 20;
-	kernel_files = (char*) malloc(sizeof(char*)*num_kernels);
-
-	strcpy(kernel_files,"cfd_kernel");
+	const char* kernel_files = "cfd_kernel";
       
-    program = ocdBuildProgramFromFile(context,device_id,kernel_files, NULL);
+    program = ocdBuildProgramFromFile(context,device_id,(char*)kernel_files, NULL);
 
 	// Create the compute kernel in the program we wish to run
 	kernel_compute_flux = clCreateKernel(program, "compute_flux", &err);
@@ -613,12 +623,63 @@ int main(int argc, char** argv)
 	}
 
 	clFinish(commands);
+
+    LSB_Set_Rparam_string("region", "runtime_finalization");
+    LSB_Res();
+	clFinish(commands);
+    LSB_Rec(0);
+
     LSB_Finalize();
 
+    float* checksum_variables = (float*)memalign(AOCL_ALIGNMENT, nelr*NVAR*sizeof(float));
+    if (checksum_variables == NULL) {
+        std::cerr << "Unable to allocate checksum buffer" << std::endl;
+        exit(3);
+    }
+
+    err = clEnqueueReadBuffer(commands, variables, CL_TRUE, 0,
+                              sizeof(float)*nelr*NVAR,
+                              checksum_variables, 0, NULL, NULL);
+    clFinish(commands);
+    CHKERR(err, "Unable to read variables for checksum");
+
+    double cfd_checksum = 0.0;
+    double cfd_abs_checksum = 0.0;
+    int cfd_finite_values = 0;
+    int cfd_nan_values = 0;
+    int cfd_inf_values = 0;
+
+    for (int idx = 0; idx < nel*NVAR; idx++) {
+        double v = (double)checksum_variables[idx];
+
+        if (isnan(v)) {
+            cfd_nan_values++;
+            continue;
+        }
+
+        if (isinf(v)) {
+            cfd_inf_values++;
+            continue;
+        }
+
+        cfd_checksum += v * (double)(idx + 1);
+        cfd_abs_checksum += fabs(v);
+        cfd_finite_values++;
+    }
+
+    printf("CFD_CHECKSUM nel=%d nelr=%d values=%d finite=%d nan=%d inf=%d value=%0.17e abs=%0.17e\n",
+           nel,
+           nelr,
+           nel*NVAR,
+           cfd_finite_values,
+           cfd_nan_values,
+           cfd_inf_values,
+           cfd_checksum,
+           cfd_abs_checksum);
+
+    free(checksum_variables);
+
 	std::cout << "Finished" << std::endl;
-	std::cout << "Saving solution..." << std::endl;
-	dump(commands, variables, nel, nelr);
-	std::cout << "Saved solution..." << std::endl;
 	std::cout << "Cleaning up..." << std::endl;
 
 	clReleaseProgram(program);

@@ -1,0 +1,6 @@
+build/
+cfd-opencl
+*.o
+density.txt
+momentum.txt
+density_energy.txt

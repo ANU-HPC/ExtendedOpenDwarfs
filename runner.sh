@@ -152,6 +152,35 @@ prepare_app() {
       make -C combinational-logic/crc clean
       make -C combinational-logic/crc datasets
       ;;
+
+    cfd)
+      echo
+      echo "==> Preparing CFD datasets"
+
+      [[ -f test/unstructured-grids/cfd/128.dat ]] || \
+        python3 scripts/generate_cfd_dataset.py \
+          test/unstructured-grids/cfd/fvcorr.domn.193K \
+          test/unstructured-grids/cfd/128.dat \
+          128
+
+      [[ -f test/unstructured-grids/cfd/1284.dat ]] || \
+        python3 scripts/generate_cfd_dataset.py \
+          test/unstructured-grids/cfd/fvcorr.domn.193K \
+          test/unstructured-grids/cfd/1284.dat \
+          1284
+
+      [[ -f test/unstructured-grids/cfd/45056.dat ]] || \
+        python3 scripts/generate_cfd_dataset.py \
+          test/unstructured-grids/cfd/fvcorr.domn.193K \
+          test/unstructured-grids/cfd/45056.dat \
+          45056
+
+      [[ -f test/unstructured-grids/cfd/193474.dat ]] || \
+        python3 scripts/generate_cfd_dataset.py \
+          test/unstructured-grids/cfd/fvcorr.domn.193K \
+          test/unstructured-grids/cfd/193474.dat \
+          193474
+      ;;
   esac
 }
 

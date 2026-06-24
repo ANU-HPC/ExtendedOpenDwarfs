@@ -1,0 +1,5 @@
+build/
+cfd-cuda-nvcc
+cfd-cuda-scale-nvidia
+cfd-cuda-scale-amd
+*.o

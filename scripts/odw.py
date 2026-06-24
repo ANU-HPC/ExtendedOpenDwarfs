@@ -73,6 +73,11 @@ APP_PATHS = {
         "opencl": "structured-grids/srad/opencl",
         "hip": "structured-grids/srad/hip",
     },
+    "cfd": {
+        "cuda": "unstructured-grids/cfd/cuda",
+        "opencl": "unstructured-grids/cfd/opencl",
+        "hip": "unstructured-grids/cfd/hip",
+    },
 }
 
 COMPILERS = {
