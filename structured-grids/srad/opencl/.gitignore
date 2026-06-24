@@ -1,0 +1,3 @@
+build/
+srad-opencl
+*.o

@@ -69,8 +69,8 @@ gem = {'name':'gemnoui',
 srad = {'name':'srad',
         'alias':'srad',
         'default':'256 256 0 127 0 127 0.5 2',
-        'tiny':'80 16 0 127 0 127 0.5 1',#30KiB
-        'small':'128 80 0 127 0 127 0.5 1',#240KiB
+        'tiny':'80 16 0 79 0 15 0.5 1',#30KiB
+        'small':'128 80 0 127 0 79 0.5 1',#240KiB
         'medium':'1024 336 0 127 0 127 0.5 1',#8064KiB
         'large':'2048 1024 0 127 0 127 0.5 1',#49152KiB
         'full name':'Speckle Reducing Anisotropic Diffusion'}

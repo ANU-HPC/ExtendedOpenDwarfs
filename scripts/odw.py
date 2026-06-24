@@ -68,6 +68,11 @@ APP_PATHS = {
         "opencl": "sparse-linear-algebra/SPMV/opencl",
         "hip": "sparse-linear-algebra/SPMV/hip",
     },
+    "srad": {
+        "cuda": "structured-grids/srad/cuda",
+        "opencl": "structured-grids/srad/opencl",
+        "hip": "structured-grids/srad/hip",
+    },
 }
 
 COMPILERS = {

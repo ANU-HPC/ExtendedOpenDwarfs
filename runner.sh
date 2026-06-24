@@ -85,7 +85,7 @@ if [[ "$PLOTS_ONLY" == "1" ]]; then
 fi
 
 case "$APP" in
-  all) APP_LIST=(csr gem kmeans bfs hmm swat nw lud crc nqueens) ;;
+  all) APP_LIST=(srad csr gem kmeans bfs hmm swat nw lud crc nqueens) ;;
   *) APP_LIST=("$APP") ;;
 esac
 
