@@ -1,0 +1,5 @@
+build/
+dwt2d-opencl
+*.o
+*.pgm
+*.dwt*

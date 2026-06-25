@@ -78,6 +78,11 @@ APP_PATHS = {
         "opencl": "unstructured-grids/cfd/opencl",
         "hip": "unstructured-grids/cfd/hip",
     },
+    "dwt2d": {
+        "cuda": "spectral-methods/dwt2d/cuda",
+        "opencl": "spectral-methods/dwt2d/opencl",
+        "hip": "spectral-methods/dwt2d/hip",
+    },
 }
 
 COMPILERS = {

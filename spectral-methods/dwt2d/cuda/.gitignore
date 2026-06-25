@@ -1,0 +1,7 @@
+build/
+dwt2d-cuda-nvcc
+dwt2d-cuda-scale-nvidia
+dwt2d-cuda-scale-amd
+*.o
+*.pgm
+*.dwt*
