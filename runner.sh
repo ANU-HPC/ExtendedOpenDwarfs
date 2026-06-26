@@ -9,6 +9,7 @@ ITERS="${ITERS:-5}"
 MODE="${MODE:-single}"
 SIZE="${SIZE:-tiny}"
 BACKEND="${BACKEND:-all}"
+COMPILER="${COMPILER:-all}"
 
 usage() {
   cat <<EOF
@@ -18,6 +19,7 @@ Usage:
 Options:
   --app APP          Benchmark app, default: all
   --backend BACKEND  all|opencl|cuda|hip, default: all
+  --compiler COMP    all|opencl|nvcc|scale-nvidia|scale-amd|hipcc, default: all
   --size SIZE        tiny|small|medium|large|default
   --iters N          Repetitions per configuration, default: 5
   --full             Run tiny, small, medium, and large
@@ -40,6 +42,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --app) APP="$2"; shift 2 ;;
     --backend) BACKEND="$2"; shift 2 ;;
+    --compiler) COMPILER="$2"; shift 2 ;;
     --size) SIZE="$2"; MODE="single"; shift 2 ;;
     --iters) ITERS="$2"; shift 2 ;;
     --full|--sweep) MODE="full"; shift ;;
@@ -98,13 +101,22 @@ case "$BACKEND" in
     ;;
 esac
 
+case "$COMPILER" in
+  all|opencl|nvcc|scale-nvidia|scale-amd|hipcc) ;;
+  *)
+    echo "Unknown compiler: $COMPILER" >&2
+    usage
+    exit 1
+    ;;
+esac
+
 if [[ "$MODE" == "full" ]]; then
   SIZES=(tiny small medium large)
 else
   SIZES=("$SIZE")
 fi
 
-echo "Running APPS=${APP_LIST[*]} BACKEND=$BACKEND ITERS=$ITERS MODE=$MODE SIZES=${SIZES[*]}"
+echo "Running APPS=${APP_LIST[*]} BACKEND=$BACKEND COMPILER=$COMPILER ITERS=$ITERS MODE=$MODE SIZES=${SIZES[*]}"
 
 run_one() {
   local backend="$1"
@@ -184,6 +196,12 @@ prepare_app() {
   esac
 }
 
+
+compiler_enabled() {
+  local compiler="$1"
+  [[ "$COMPILER" == "all" || "$COMPILER" == "$compiler" ]]
+}
+
 host_supports_backend() {
   local backend="$1"
 
@@ -217,33 +235,43 @@ run_size() {
   echo "============================================================"
 
   if [[ "$BACKEND" == "all" || "$BACKEND" == "opencl" ]]; then
-    if host_supports_backend opencl; then
-      run_one opencl opencl "$size" env
-    else
-      echo "Skipping OpenCL: not available on this host"
+    if compiler_enabled opencl; then
+      if host_supports_backend opencl; then
+        run_one opencl opencl "$size" env
+      else
+        echo "Skipping OpenCL: not available on this host"
+      fi
     fi
   fi
 
   if [[ "$BACKEND" == "all" || "$BACKEND" == "hip" ]]; then
-    if host_supports_backend hip; then
-      run_one hip hipcc "$size" env
-    else
-      echo "Skipping HIP: not available on this host"
+    if compiler_enabled hipcc; then
+      if host_supports_backend hip; then
+        run_one hip hipcc "$size" env
+      else
+        echo "Skipping HIP: not available on this host"
+      fi
     fi
   fi
 
   if [[ "$BACKEND" == "all" || "$BACKEND" == "cuda" ]]; then
     if host_supports_backend cuda; then
-      run_one cuda nvcc "$size" env
-      run_one cuda scale-nvidia "$size" env
+      if compiler_enabled nvcc; then
+        run_one cuda nvcc "$size" env
+      fi
+      if compiler_enabled scale-nvidia; then
+        run_one cuda scale-nvidia "$size" env
+      fi
     else
       echo "Skipping CUDA: not available on this host"
     fi
 
-    if host_supports_backend scale-amd; then
-      run_one cuda scale-amd "$size" env
-    elif [[ "$BACKEND" == "cuda" ]]; then
-      echo "Skipping SCALE AMD path: HIP target not available on this host"
+    if compiler_enabled scale-amd; then
+      if host_supports_backend scale-amd; then
+        run_one cuda scale-amd "$size" env
+      elif [[ "$BACKEND" == "cuda" ]]; then
+        echo "Skipping SCALE AMD path: HIP target not available on this host"
+      fi
     fi
   fi
 }

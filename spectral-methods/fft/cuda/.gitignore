@@ -1,0 +1,5 @@
+build/
+fft-cuda-nvcc
+fft-cuda-scale-nvidia
+fft-cuda-scale-amd
+*.o

@@ -83,6 +83,11 @@ APP_PATHS = {
         "opencl": "spectral-methods/dwt2d/opencl",
         "hip": "spectral-methods/dwt2d/hip",
     },
+    "fft": {
+        "cuda": "spectral-methods/fft/cuda",
+        "opencl": "spectral-methods/fft/opencl",
+        "hip": "spectral-methods/fft/hip",
+    },
 }
 
 COMPILERS = {
@@ -277,7 +282,7 @@ def run_binary(app_dir, app, backend, compiler, final_args, lsb_name):
     results.mkdir(exist_ok=True)
 
     if backend == "opencl":
-        for kernel in app_dir.glob("*.cl"):
+        for kernel in app_dir.rglob("*.cl"):
             dst = results / kernel.name
             dst.write_bytes(kernel.read_bytes())
 

@@ -42,8 +42,8 @@ csr = {'name':'csr',
        'medium':'-i ../test/sparse-linear-algebra/SPMV/medium',#14336, 8195.5KiB
        'large':'-i ../test/sparse-linear-algebra/SPMV/large',#16384, 10677.8KiB
        'full name':'Compressed Sparse Row'}
-fft = {'name':'openclfft',
-       'alias':'openclfft',
+fft = {'name':'fft',
+       'alias':'fft',
        'default':'128',
        'tiny':'2048', #32KiB
        'small':'16384 ',#256KiB
