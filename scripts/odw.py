@@ -127,12 +127,14 @@ def make_vars(backend, compiler):
 
     common = [
         f"TOP_LEVEL={top}",
-        f"SCALE_ROOT={os.environ.get('SCALE_ROOT', str(top / 'scale-1.7.0-Linux'))}",
         f"LSB_INSTALL_ROOT={lsb}",
         f"CPPFLAGS=-I{lsb}/include",
         f"LDFLAGS=-L{lsb}/lib -Xlinker -rpath -Xlinker {lsb}/lib",
         "LDLIBS=-llsb",
     ]
+
+    if "SCALE_ROOT" in os.environ:
+        common.append(f"SCALE_ROOT={os.environ['SCALE_ROOT']}")
 
     if backend == "cuda":
         vars_ = common + [
