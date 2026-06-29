@@ -139,7 +139,7 @@ def make_vars(backend, compiler):
     if backend == "cuda":
         vars_ = common + [
             f"CUDA_NVCC={os.environ.get('CUDA_NVCC', os.environ.get('NVCC', 'nvcc'))}",
-            f"CUDA_PATH={'' if os.environ.get('ODW_USE_SCALE') == '1' else os.environ.get('CUDA_PATH', '')}",
+            f"CUDA_PATH={os.environ.get('CUDA_PATH', '')}",
             f"NVCCFLAGS={os.environ.get('NVCCFLAGS', '-O3 -std=c++17')}",
         ]
 
