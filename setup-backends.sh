@@ -155,10 +155,11 @@ if [[ "${BACKENDS}" == *"cuda"* ]]; then
     export CUDA_PATH="$(dirname "$(dirname "$(command -v nvcc)")")"
   fi
 
-  export CUDA_HOME="$CUDA_PATH"
-  export CUDA_TOOLKIT_ROOT_PATH="$CUDA_PATH"
-
-  prepend_path "$CUDA_PATH/bin"
+  if [[ "${ODW_USE_SCALE:-0}" != "1" ]]; then
+    export CUDA_HOME="$CUDA_PATH"
+    export CUDA_TOOLKIT_ROOT_PATH="$CUDA_PATH"
+    prepend_path "$CUDA_PATH/bin"
+  fi
 
   if [[ -n "${NVHPC_ROOT:-}" ]]; then
     append_ld_library_path "$NVHPC_ROOT/compilers/lib"
