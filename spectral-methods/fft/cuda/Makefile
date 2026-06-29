@@ -50,7 +50,6 @@ $(TARGET_NVCC): $(CUDA_OBJ)
 $(TARGET_SCALE_NVIDIA): fft.cu
 	source "$(SCALE_ROOT)/bin/scaleenv" sm_$(CUDA_ARCH) && \
 	nvcc \
-		$(if $(CUDA_PATH),--cuda-path="$(CUDA_PATH)") \
 		-gencode arch=compute_$(CUDA_ARCH),code=sm_$(CUDA_ARCH) \
 		$(NVCCFLAGS) \
 		$(COMMON_CPPFLAGS) \
