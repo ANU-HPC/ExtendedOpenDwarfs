@@ -351,6 +351,16 @@ def run(args):
             selector_args = opencl_args()
             final_args = f"{extra_args} {selector_args} {problem_args}".strip()
         else:
+            # Runs execute from REPO_ROOT/results. Convert app-relative test paths
+            # to repository-absolute paths so dataset loaders can find them.
+            parts = shlex.split(problem_args)
+            fixed = []
+            for part in parts:
+                if part.startswith("../test/"):
+                    fixed.append(str(REPO_ROOT / part[3:]))
+                else:
+                    fixed.append(part)
+            problem_args = " ".join(shlex.quote(x) for x in fixed)
             final_args = f"{extra_args} {problem_args}".strip()
 
         lsb_app_name = app_name
