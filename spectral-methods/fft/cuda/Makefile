@@ -60,7 +60,6 @@ $(TARGET_SCALE_NVIDIA): fft.cu
 		-lm
 
 $(TARGET_SCALE_AMD): fft.cu
-	source "$(SCALE_ROOT)/bin/scaleenv" $(HIP_ARCH) && \
 	nvcc \
 		$(NVCCFLAGS) \
 		$(COMMON_CPPFLAGS) \
@@ -86,7 +85,6 @@ run-$(TARGET_SCALE_NVIDIA): $(TARGET_SCALE_NVIDIA)
 run-$(TARGET_SCALE_AMD): $(TARGET_SCALE_AMD)
 	mkdir -p "$(TOP_LEVEL)/results"
 	cd "$(TOP_LEVEL)/results" && \
-	source "$(SCALE_ROOT)/bin/scaleenv" $(HIP_ARCH) && \
 	$(RUN_ENV) "$(CURDIR)/$(TARGET_SCALE_AMD)" $(ARGS) $(N)
 
 clean:
