@@ -50,6 +50,14 @@ fft = {'name':'fft',
        'medium':'524288', #8192KiB
        'large':'2097152', #32768KiB
        'full name':'Fast Fourier Transform'}
+cwt = {'name':'cwt',
+       'alias':'cwt',
+       'default':'179 1',
+       'tiny':'62 1',      # 31.48KiB <= 32KiB
+       'small':'179 1',    # 254.52KiB <= 256KiB
+       'medium':'1022 1',  # 8183.63KiB <= 8192KiB
+       'large':'2046 1',   # 32752.00KiB <= 32768KiB
+       'full name':'Continuous Wavelet Transform'}
 dwt = {'name':'dwt2d',
        'alias':'dwt2d',
        'default':'-l 3 ../test/spectral-methods/dwt2d/airplane.ppm -w airplane', #writes out the dwt2d wavelet coefficients in a visual form to pgm format
@@ -134,7 +142,7 @@ cfd = {'name':'cfd',
 #Dwarfs as clusters of Benchmarks:
 dense_linear_algebra = [kmeans,lud]
 sparse_linear_algebra = [csr]
-spectral_methods = [fft,dwt]
+spectral_methods = [fft,dwt,cwt]
 n_body_methods = [gem]
 structured_grid_methods = [srad]
 unstructured_grid_methods = [cfd]

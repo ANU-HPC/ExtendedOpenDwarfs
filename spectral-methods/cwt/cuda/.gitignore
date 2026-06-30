@@ -1,0 +1,5 @@
+build/
+cwt-cuda-nvcc-
+cwt-cuda-scale-nvidia
+cwt-cuda-scale-amd
+*.o

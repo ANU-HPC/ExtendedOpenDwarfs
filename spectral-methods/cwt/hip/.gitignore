@@ -1,0 +1,3 @@
+build/
+cwt-hip-hipcc
+*.o

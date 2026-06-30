@@ -88,6 +88,11 @@ APP_PATHS = {
         "opencl": "spectral-methods/fft/opencl",
         "hip": "spectral-methods/fft/hip",
     },
+    "cwt": {
+        "cuda": "spectral-methods/cwt/cuda",
+        "opencl": "spectral-methods/cwt/opencl",
+        "hip": "spectral-methods/cwt/hip",
+    },
 }
 
 COMPILERS = {
