@@ -1,10 +1,10 @@
 #ifndef GLOBAL_H_
 #define GLOBAL_H_
 
-const unsigned int MaxRecords = 5000000;
-const unsigned int maxCandidates = 13000000;
+extern unsigned int MaxRecords;
+extern unsigned int maxCandidates;
 //const unsigned int maxLevel = 20;
-const unsigned int maxIntervals = (maxCandidates-1)*2;
+extern unsigned int maxIntervals;
 const unsigned int MaxListSize = 10;
 
 static float support;

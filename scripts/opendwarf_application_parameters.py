@@ -114,11 +114,15 @@ hmm = {'name':'bwa_hmm',
        'medium':'-n 1012 -s 1024 -v n',#8032.76KiB
        'large':'-n 2048 -s 2048 -v n',#32832.01KiB
        'full name':'Baum-Welch Algorithm, Hidden Markov Model'}
-#TODO: add 2 second loop logic to the following, then choose problem sizes
 tdm = {'name':'tdm',
        'alias':'tdm',
-       'default':'../test/finite-state-machine/tdm/sim-64-size200.csv ../test/finite-state-machine/tdm/ivl.txt ../test/finite-state-machine/tdm/30-episodes.txt 128',
+       'tiny':'../test/finite-state-machine/tdm/sim-64-size200-tiny.csv ../test/finite-state-machine/tdm/ivl.txt ../test/finite-state-machine/tdm/episodes-tiny.txt 64 768 768', # 30.24KiB
+       'small':'../test/finite-state-machine/tdm/sim-64-size200-small.csv ../test/finite-state-machine/tdm/ivl.txt ../test/finite-state-machine/tdm/episodes-small.txt 128 6400 6400', # target <= 256KiB
+       'medium':'../test/finite-state-machine/tdm/sim-64-size200-medium.csv ../test/finite-state-machine/tdm/ivl.txt ../test/finite-state-machine/tdm/episodes-medium.txt 128 218000 218000', # target <= 8192KiB
+       'large':'../test/finite-state-machine/tdm/sim-64-size200-large.csv ../test/finite-state-machine/tdm/ivl.txt ../test/finite-state-machine/tdm/episodes-large.txt 128 880000 880000', # target <= 32768KiB
+       'default':'../test/finite-state-machine/tdm/sim-64-size200-small.csv ../test/finite-state-machine/tdm/ivl.txt ../test/finite-state-machine/tdm/episodes-small.txt 128 6800 6800',
        'full name':'Temporal Data Mining'}
+#TODO: add 2 second loop logic to the following, then choose problem sizes
 nqueens = {'name':'nqueens',
            'alias':'nqueens',
            'default':'20',

@@ -20,6 +20,9 @@
 #define AOCL_ALIGNMENT 64
 #define MIN_TIME_SEC 2
 
+unsigned int MaxRecords = 5000000;
+unsigned int maxCandidates = 13000000;
+unsigned int maxIntervals = (maxCandidates - 1) * 2;
 unsigned int numCandidates;
 int episodesCulled = 0;
 
@@ -89,6 +92,24 @@ static void record_region_start(const char* region)
 static void record_region_end(int id)
 {
 	LSB_Rec(id);
+}
+
+
+static double tdm_device_working_memory_kib()
+{
+	size_t bytes = 0;
+
+	bytes += (size_t) eventSize * sizeof(ubyte);          // d_events
+	bytes += (size_t) eventSize * sizeof(float);          // d_times
+	bytes += (size_t) maxCandidates * sizeof(ubyte);      // d_episodeCandidates
+	bytes += (size_t) maxIntervals * sizeof(float);       // d_episodeIntervals
+	bytes += (size_t) maxCandidates * sizeof(uint);       // d_episodeSupport
+	bytes += (size_t) MaxRecords * sizeof(*h_startRecords);
+	bytes += (size_t) MaxRecords * sizeof(*h_foundRecords);
+	bytes += (size_t) MaxRecords * sizeof(uint);          // d_recCount
+	bytes += (size_t) MaxRecords * sizeof(uint);          // d_recOffSet
+
+	return (double) bytes / 1024.0;
 }
 
 void loadCandidateEpisodes(char* filename, int& level)
@@ -274,6 +295,8 @@ int main(int argc, char** argv)
 	LSB_Set_Rparam_int("max_level", 0);
 	LSB_Set_Rparam_int("event_size", 0);
 	LSB_Set_Rparam_int("num_threads", 0);
+	LSB_Set_Rparam_int("max_records", 0);
+	LSB_Set_Rparam_int("max_candidates", 0);
 
 	runTest(argc, argv);
 
@@ -299,8 +322,8 @@ void runTest(int argc, char** argv)
 
 	record_region_end(0);
 
-	if (argc != 5) {
-		printf("Usage: tdm_ocl <data path> <intervals path> <episodes path> <threads>\n");
+	if (argc != 7) {
+		printf("Usage: tdm_ocl <data path> <intervals path> <episodes path> <threads> <max records> <max candidates>\n");
 
 		record_region_start("runtime_finalization");
 		ocd_finalize();
@@ -329,7 +352,18 @@ void runTest(int argc, char** argv)
 	size_t localWorkSize[3];
 
 	unsigned int num_threads = atoi(argv[4]);
+	MaxRecords = (unsigned int) strtoul(argv[5], NULL, 10);
+	maxCandidates = (unsigned int) strtoul(argv[6], NULL, 10);
+	maxIntervals = (maxCandidates - 1) * 2;
+
+	if (MaxRecords == 0 || maxCandidates == 0) {
+		printf("max records and max candidates must be > 0\n");
+		return;
+	}
+
 	LSB_Set_Rparam_int("num_threads", (int) num_threads);
+	LSB_Set_Rparam_int("max_records", (int) MaxRecords);
+	LSB_Set_Rparam_int("max_candidates", (int) maxCandidates);
 
 	record_region_start("host_input_setup");
 
@@ -349,6 +383,8 @@ void runTest(int argc, char** argv)
 	LSB_Set_Rparam_int("num_candidates", (int) numCandidates);
 	LSB_Set_Rparam_int("max_level", maxLevel);
 	LSB_Set_Rparam_int("event_size", (int) eventSize);
+
+	printf("Working kernel memory: %.4fKiB\n", tdm_device_working_memory_kib());
 
 	setupGpu();
 

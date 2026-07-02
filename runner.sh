@@ -20,7 +20,7 @@ Options:
   --app APP          Benchmark app, default: all
   --backend BACKEND  all|opencl|cuda|hip, default: all
   --compiler COMP    all|opencl|nvcc|scale-nvidia|scale-amd|hipcc, default: all
-  --size SIZE        tiny|small|medium|large|default
+  --size SIZE        tiny|small|medium|large|default|all
   --iters N          Repetitions per configuration, default: 5
   --full             Run tiny, small, medium, and large
   --sweep            Alias for --full
@@ -110,7 +110,7 @@ case "$COMPILER" in
     ;;
 esac
 
-if [[ "$MODE" == "full" ]]; then
+if [[ "$MODE" == "full" || "$SIZE" == "all" ]]; then
   SIZES=(tiny small medium large)
 else
   SIZES=("$SIZE")
@@ -192,6 +192,26 @@ prepare_app() {
           test/unstructured-grids/cfd/fvcorr.domn.193K \
           test/unstructured-grids/cfd/193474.dat \
           193474
+      ;;
+
+    tdm)
+      echo
+      echo "==> Preparing TDM datasets"
+
+      [[ -f test/finite-state-machine/tdm/sim-64-size200-tiny.csv && \
+         -f test/finite-state-machine/tdm/episodes-tiny.txt && \
+         -f test/finite-state-machine/tdm/sim-64-size200-small.csv && \
+         -f test/finite-state-machine/tdm/episodes-small.txt && \
+         -f test/finite-state-machine/tdm/sim-64-size200-medium.csv && \
+         -f test/finite-state-machine/tdm/episodes-medium.txt && \
+         -f test/finite-state-machine/tdm/sim-64-size200-large.csv && \
+         -f test/finite-state-machine/tdm/episodes-large.txt ]] || \
+        python3 scripts/generate_tdm_dataset.py \
+          test/finite-state-machine/tdm/sim-64-size200.csv \
+          test/finite-state-machine/tdm/30-episodes.txt \
+          --output-dir test/finite-state-machine/tdm \
+          --prefix sim-64-size200 \
+          --episodes-prefix episodes
       ;;
   esac
 }

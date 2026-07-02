@@ -20,6 +20,9 @@
 #define AOCL_ALIGNMENT 64
 #define MIN_TIME_SEC 2
 
+unsigned int MaxRecords = 5000000;
+unsigned int maxCandidates = 13000000;
+unsigned int maxIntervals = (maxCandidates - 1) * 2;
 unsigned int numCandidates;
 int episodesCulled = 0;
 
@@ -119,6 +122,23 @@ static void cuda_check(cudaError_t err, const char* msg)
 		fprintf(stderr, "CUDA error: %s: %s\n", msg, cudaGetErrorString(err));
 		exit(EXIT_FAILURE);
 	}
+}
+
+static double tdm_device_working_memory_kib()
+{
+	size_t bytes = 0;
+
+	bytes += (size_t) eventSize * sizeof(ubyte);
+	bytes += (size_t) eventSize * sizeof(float);
+	bytes += (size_t) maxCandidates * sizeof(ubyte);
+	bytes += (size_t) maxIntervals * sizeof(float);
+	bytes += (size_t) maxCandidates * sizeof(uint);
+	bytes += (size_t) MaxRecords * sizeof(*h_startRecords);
+	bytes += (size_t) MaxRecords * sizeof(*h_foundRecords);
+	bytes += (size_t) MaxRecords * sizeof(uint);
+	bytes += (size_t) MaxRecords * sizeof(uint);
+
+	return (double) bytes / 1024.0;
 }
 
 static void parse_pre_separator_common_args(int argc, char** argv, int* cuda_device)
@@ -337,6 +357,8 @@ int main(int argc, char** argv)
 	LSB_Set_Rparam_int("max_level", 0);
 	LSB_Set_Rparam_int("event_size", 0);
 	LSB_Set_Rparam_int("num_threads", 0);
+	LSB_Set_Rparam_int("max_records", 0);
+	LSB_Set_Rparam_int("max_candidates", 0);
 
 	record_region_start("runtime_initialization");
 
@@ -348,8 +370,8 @@ int main(int argc, char** argv)
 
 	record_region_end(0);
 
-	if (app_argc != 5) {
-		printf("Usage: tdm_cuda <data path> <intervals path> <episodes path> <threads>\n");
+	if (app_argc != 7) {
+		printf("Usage: tdm_cuda <data path> <intervals path> <episodes path> <threads> <max records> <max candidates>\n");
 
 		record_region_start("runtime_finalization");
 		cuda_check(cudaStreamDestroy(stream), "failed to destroy CUDA stream");
@@ -367,7 +389,20 @@ int main(int argc, char** argv)
 	size_t localWorkSize;
 
 	unsigned int num_threads = atoi(app_argv[4]);
+	MaxRecords = (unsigned int) strtoul(app_argv[5], NULL, 10);
+	maxCandidates = (unsigned int) strtoul(app_argv[6], NULL, 10);
+	maxIntervals = (maxCandidates - 1) * 2;
+
+	if (MaxRecords == 0 || maxCandidates == 0) {
+		printf("max records and max candidates must be > 0\n");
+		LSB_Finalize();
+		free(app_argv);
+		return 1;
+	}
+
 	LSB_Set_Rparam_int("num_threads", (int) num_threads);
+	LSB_Set_Rparam_int("max_records", (int) MaxRecords);
+	LSB_Set_Rparam_int("max_candidates", (int) maxCandidates);
 
 	record_region_start("host_input_setup");
 
@@ -387,6 +422,8 @@ int main(int argc, char** argv)
 	LSB_Set_Rparam_int("num_candidates", (int) numCandidates);
 	LSB_Set_Rparam_int("max_level", maxLevel);
 	LSB_Set_Rparam_int("event_size", (int) eventSize);
+
+	printf("Working kernel memory: %.4fKiB\n", tdm_device_working_memory_kib());
 
 	setupGpu(stream);
 
