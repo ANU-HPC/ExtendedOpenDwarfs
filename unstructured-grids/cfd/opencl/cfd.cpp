@@ -10,6 +10,7 @@
 #include "portable_memory.h"
 
 #define AOCL_ALIGNMENT 64
+#define MIN_TIME_SEC 2
 size_t working_kernel_memory = 0;
 
 typedef struct{
@@ -509,8 +510,15 @@ int main(int argc, char** argv)
 	std::cout << "Starting..." << std::endl;
 
 	// Begin iterations
-	for(int i = 0; i < iterations; i++)
-	{
+    int lsb_timing_repeats = 0;
+    struct timeval startTime, currentTime, elapsedTime;
+
+    gettimeofday(&startTime, NULL);
+
+    do {
+        LSB_Set_Rparam_int("repeats_to_two_seconds", lsb_timing_repeats);
+
+        for (int i = 0; i < iterations; i++) {
 		copy<float>(commands, old_variables, variables, nelr*NVAR);
 
         LSB_Set_Rparam_string("region", "setting_kernel_compute_step_factor_arguments");
@@ -623,6 +631,12 @@ int main(int argc, char** argv)
 	}
 
 	clFinish(commands);
+
+        lsb_timing_repeats++;
+        gettimeofday(&currentTime, NULL);
+        timersub(&currentTime, &startTime, &elapsedTime);
+    } while (elapsedTime.tv_sec < MIN_TIME_SEC);
+
 
     LSB_Set_Rparam_string("region", "runtime_finalization");
     LSB_Res();

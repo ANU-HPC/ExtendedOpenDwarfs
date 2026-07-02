@@ -122,6 +122,14 @@ tdm = {'name':'tdm',
        'large':'../test/finite-state-machine/tdm/sim-64-size200-large.csv ../test/finite-state-machine/tdm/ivl.txt ../test/finite-state-machine/tdm/episodes-large.txt 128 880000 880000', # target <= 32768KiB
        'default':'../test/finite-state-machine/tdm/sim-64-size200-small.csv ../test/finite-state-machine/tdm/ivl.txt ../test/finite-state-machine/tdm/episodes-small.txt 128 6800 6800',
        'full name':'Temporal Data Mining'}
+cfd = {'name':'cfd',
+       'alias':'cfd',
+       'default':'../test/unstructured-grids/cfd/fvcorr.domn.097K',
+       'tiny':'../test/unstructured-grids/cfd/128.dat',#23.066KiB
+       'small':'../test/unstructured-grids/cfd/1284.dat',#253.066KiB
+       'medium':'../test/unstructured-grids/cfd/45056.dat',#8096KiB
+       'large':'../test/unstructured-grids/cfd/193474.dat',#34776.066KiB
+       'full name':'Computational Fluid Dynamics'}
 #TODO: add 2 second loop logic to the following, then choose problem sizes
 nqueens = {'name':'nqueens',
            'alias':'nqueens',
@@ -134,14 +142,6 @@ swat = {'name':'swat',
         'small':'../test/dynamic-programming/swat/query1K1 ../test/dynamic-programming/swat/sampledb1K1',
         'default':'../test/dynamic-programming/swat/query1K1 ../test/dynamic-programming/swat/sampledb1K1',
         'full name':'Smith-Waterman'}
-cfd = {'name':'cfd',
-       'alias':'cfd',
-       'default':'../test/unstructured-grids/cfd/fvcorr.domn.097K',
-       'tiny':'../test/unstructured-grids/cfd/128.dat',#23.066KiB
-       'small':'../test/unstructured-grids/cfd/1284.dat',#253.066KiB
-       'medium':'../test/unstructured-grids/cfd/45056.dat',#8096KiB
-       'large':'../test/unstructured-grids/cfd/193474.dat',#34776.066KiB
-       'full name':'Computational Fluid Dynamics'}
 
 #Dwarfs as clusters of Benchmarks:
 dense_linear_algebra = [kmeans,lud]

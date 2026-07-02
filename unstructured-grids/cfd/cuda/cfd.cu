@@ -7,11 +7,13 @@
 #include <iostream>
 #include <cstdio>
 #include <cstring>
+#include <sys/time.h>
 
 #include "lsb.h"
 #include "portable_memory.h"
 
 #define AOCL_ALIGNMENT 64
+#define MIN_TIME_SEC 2
 
 #define GAMMA 1.4f
 #define iterations 1
@@ -630,7 +632,15 @@ int main(int argc, char** argv)
     printf("Working kernel memory: %fKiB\n", working_kernel_memory / 1024.0);
     std::cout << "Starting..." << std::endl;
 
-    for (int i = 0; i < iterations; i++) {
+    int lsb_timing_repeats = 0;
+    struct timeval startTime, currentTime, elapsedTime;
+
+    gettimeofday(&startTime, NULL);
+
+    do {
+        LSB_Set_Rparam_int("repeats_to_two_seconds", lsb_timing_repeats);
+
+        for (int i = 0; i < iterations; i++) {
         LSB_Set_Rparam_string("region", "device_side_d2d_copy");
         LSB_Res();
         CUDA_CHECK(cudaMemcpy(old_variables, variables, sizeof(float) * nelr * NVAR, cudaMemcpyDeviceToDevice));
@@ -703,6 +713,12 @@ int main(int argc, char** argv)
             LSB_Rec(j);
         }
     }
+
+        lsb_timing_repeats++;
+        gettimeofday(&currentTime, NULL);
+        timersub(&currentTime, &startTime, &elapsedTime);
+    } while (elapsedTime.tv_sec < MIN_TIME_SEC);
+
 
     LSB_Set_Rparam_string("region", "runtime_finalization");
     LSB_Res();
