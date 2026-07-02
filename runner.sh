@@ -194,6 +194,23 @@ prepare_app() {
           193474
       ;;
 
+    swat)
+      echo
+      echo "==> Preparing SWAT datasets"
+
+      [[ -f test/dynamic-programming/swat/sampledb-tiny.data && \
+         -f test/dynamic-programming/swat/sampledb-tiny.loc && \
+         -f test/dynamic-programming/swat/sampledb-small.data && \
+         -f test/dynamic-programming/swat/sampledb-small.loc && \
+         -f test/dynamic-programming/swat/sampledb-medium.data && \
+         -f test/dynamic-programming/swat/sampledb-medium.loc && \
+         -f test/dynamic-programming/swat/sampledb-large.data && \
+         -f test/dynamic-programming/swat/sampledb-large.loc ]] || \
+        python3 scripts/generate_swat_dataset.py \
+          test/dynamic-programming/swat/sampledb1K1 \
+          test/dynamic-programming/swat
+      ;;
+
     tdm)
       echo
       echo "==> Preparing TDM datasets"

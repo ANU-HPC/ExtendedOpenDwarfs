@@ -282,6 +282,33 @@ int main(int argc, char** argv)
 	int subSequenceNum = 0;
 	fread(&subSequenceNum, sizeof(int), 1, pDBLenFile);
 
+	long dbDataBytes = 0;
+	long dbLenBytes = 0;
+
+	{
+		long savedDataPos = ftell(pDBDataFile);
+		long savedLenPos = ftell(pDBLenFile);
+
+		fseek(pDBDataFile, 0, SEEK_END);
+		dbDataBytes = ftell(pDBDataFile);
+		fseek(pDBDataFile, savedDataPos, SEEK_SET);
+
+		fseek(pDBLenFile, 0, SEEK_END);
+		dbLenBytes = ftell(pDBLenFile);
+		fseek(pDBLenFile, savedLenPos, SEEK_SET);
+	}
+
+	const double inputMemoryKiB =
+		((double)querySize + (double)dbDataBytes + (double)dbLenBytes) / 1024.0;
+
+	printf("Input memory: %0.4fKiB\n", inputMemoryKiB);
+	printf("SWAT_DATASET query_bytes=%d database_data_bytes=%ld database_len_bytes=%ld subsequences=%d input_memory_kib=%0.4f\n",
+		querySize,
+		dbDataBytes,
+		dbLenBytes,
+		subSequenceNum,
+		inputMemoryKiB);
+
 	record_region_end(0);
 
 	LSB_Set_Rparam_int("query_size", querySize);
