@@ -11,6 +11,7 @@
 #include <cstring>
 #include <sstream>
 #include <vector>
+#include <sys/time.h>
 
 #if __has_include(<liblsb.h>)
 #include <liblsb.h>
@@ -18,6 +19,8 @@
 #else
 #define HAVE_LSB 0
 #endif
+
+#define MIN_TIME_SEC 2
 
 #define CUDA_CHECK(expr)                                                     \
     do {                                                                     \
@@ -223,10 +226,23 @@ long long NQueenSolverCUDA::Compute(int board_size, long long* unique)
         ? 0xffffffffu
         : ((1u << board_size) - 1u);
 
-    int total_size = 0;
-    bool forbidden_written = false;
+    int lsb_timing_repeats = 0;
+    struct timeval startTime, currentTime, elapsedTime;
 
-    for (int j = 0; j < board_size / 2; j++) {
+    gettimeofday(&startTime, NULL);
+
+    do {
+#if HAVE_LSB
+        LSB_Set_Rparam_int("repeats_to_two_seconds", lsb_timing_repeats);
+#endif
+
+        solutions = 0;
+        unique_solutions = 0;
+
+        int total_size = 0;
+        bool forbidden_written = false;
+
+        for (int j = 0; j < board_size / 2; j++) {
         unsigned int masks[32] = {0};
         unsigned int left_masks[32] = {0};
         unsigned int right_masks[32] = {0};
@@ -520,6 +536,11 @@ long long NQueenSolverCUDA::Compute(int board_size, long long* unique)
             total_size -= t_size;
         }
     }
+
+        lsb_timing_repeats++;
+        gettimeofday(&currentTime, NULL);
+        timersub(&currentTime, &startTime, &elapsedTime);
+    } while (elapsedTime.tv_sec < MIN_TIME_SEC);
 
     FreeBuffers();
 

@@ -130,13 +130,16 @@ cfd = {'name':'cfd',
        'medium':'../test/unstructured-grids/cfd/45056.dat',#8096KiB
        'large':'../test/unstructured-grids/cfd/193474.dat',#34776.066KiB
        'full name':'Computational Fluid Dynamics'}
-#TODO: add 2 second loop logic to the following, then choose problem sizes
+# N-Queens is branch-and-bound rather than memory-bound, so sizes are
+# selected by increasing search complexity rather than working-set size.
 nqueens = {'name':'nqueens',
            'alias':'nqueens',
            'default':'20',
-           'full name':'N-Queens',
-           'tiny':'8',
-           'small':'18'}
+           'tiny':'12',
+           'small':'14',
+           'medium':'16',
+           'large':'18',
+           'full name':'N-Queens'}
 swat = {'name':'swat',
         'alias':'swat',
         'small':'../test/dynamic-programming/swat/query1K1 ../test/dynamic-programming/swat/sampledb1K1',

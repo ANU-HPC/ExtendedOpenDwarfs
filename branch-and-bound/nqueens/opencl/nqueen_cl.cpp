@@ -8,6 +8,7 @@
 #include <ctime>
 #include <cstdlib>
 #include <cstring>
+#include <sys/time.h>
 #include "nqueen_cl.h"
 #include "../../../include/common_args.h"
 #if __has_include(<liblsb.h>)
@@ -16,6 +17,8 @@
 #else
 #define HAVE_LSB 0
 #endif
+
+#define MIN_TIME_SEC 2
 //#define CHECK_ERROR(err) { if(err != CL_SUCCESS) throw CLError(err, __LINE__); }
 
 class CLMemAutoRelease
@@ -386,10 +389,24 @@ long long NQueenSolver::Compute(int board_size, long long* unique)
 	int vec_size = m_bForceVec4 ? 4 : 2;
 
 	unsigned int board_mask = (1 << board_size) - 1;
-	int total_size = 0;
-	int last_total_size = 0;
-	int device_idx = 0;
-	for(int j = 0; j < board_size / 2; j++) {
+
+	int lsb_timing_repeats = 0;
+	struct timeval startTime, currentTime, elapsedTime;
+
+	gettimeofday(&startTime, NULL);
+
+	do {
+		LSB_Set_Rparam_int("repeats_to_two_seconds", lsb_timing_repeats);
+
+		solutions = 0;
+		unique_solutions = 0;
+		has_data = false;
+
+		int total_size = 0;
+		int last_total_size = 0;
+		int device_idx = 0;
+
+		for(int j = 0; j < board_size / 2; j++) {
 	// only do nqueen1
 //	int j = 1;
 //	{
@@ -973,6 +990,11 @@ long long NQueenSolver::Compute(int board_size, long long* unique)
 			}
 		}
 	}
+
+		lsb_timing_repeats++;
+		gettimeofday(&currentTime, NULL);
+		timersub(&currentTime, &startTime, &elapsedTime);
+	} while (elapsedTime.tv_sec < MIN_TIME_SEC);
 
 	for(int i = 0; i < m_SolverInfo.size(); i++) {
 		if(m_SolverInfo[i].m_ParamBuffer != 0) { clReleaseMemObject(m_SolverInfo[i].m_ParamBuffer); m_SolverInfo[i].m_ParamBuffer = 0; }
