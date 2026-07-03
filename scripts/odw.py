@@ -308,7 +308,7 @@ def run_binary(app_dir, app, backend, compiler, final_args, lsb_name):
 
         env_cmd = f"source {shlex.quote(scale_root + '/bin/scaleenv')} {shlex.quote(target)} && " + env_cmd
 
-    shell(["bash", "-lc", env_cmd], cwd=results)
+    shell(["bash", "-c", env_cmd], cwd=results)
 
 
 
