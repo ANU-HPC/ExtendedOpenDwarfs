@@ -89,6 +89,19 @@ case "$HOST" in
     export OPENCL_INC_DIR="${OPENCL_INC_DIR:-$ROCM_PATH/include}"
     export OPENCL_LIB_DIR="${OPENCL_LIB_DIR:-$ROCM_PATH/lib}"    ;;
 
+  beta)
+    # AMD Radeon RX 6800 XT gfx1030 + Vega/gfx900 
+    export BACKENDS="hip,opencl"
+    export HIP_DEV_TARGET="${HIP_DEV_TARGET:-gfx1201}"
+    export MACHINE="AMD RX 6800 XT"
+
+    export ROCM_PATH="${ROCM_PATH:-/opt/rocm-7.1.0}"
+    export HIP_PATH="${HIP_PATH:-$ROCM_PATH}"
+
+    # Prefer ROCm OpenCL on mixed AMD/NVIDIA hosts unless overridden.
+    export OPENCL_INC_DIR="${OPENCL_INC_DIR:-$ROCM_PATH/include}"
+    export OPENCL_LIB_DIR="${OPENCL_LIB_DIR:-$ROCM_PATH/lib}"    ;;
+
   milan2)
     # Tesla V100-PCIE-32GB
     export BACKENDS="cuda,opencl"
