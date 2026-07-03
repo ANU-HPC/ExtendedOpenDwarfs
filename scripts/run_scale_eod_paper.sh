@@ -37,18 +37,18 @@ run_case() {
 
 case "$HOST" in
   trill)
-    run_case "rtx5090" CUDA_VISIBLE_DEVICES=0
+    run_case "rtx5090" CUDA_DEV_TARGET=sm_120 CUDA_ARCH=120 CUDA_VISIBLE_DEVICES=0
     run_case "w7800" HIP_DEV_TARGET=gfx1100 HIP_ARCH=gfx1100 HIP_VISIBLE_DEVICES=0 ROCR_VISIBLE_DEVICES=0 OPENCL_ARGS="-p 0 -d 0 -t 1 --"
     ;;
 
   alpha)
-    run_case "rtx5070ti" CUDA_VISIBLE_DEVICES=0
+    run_case "rtx5070ti" CUDA_DEV_TARGET=sm_120 CUDA_ARCH=120 CUDA_VISIBLE_DEVICES=0
     run_case "rx7900xtx" HIP_DEV_TARGET=gfx1100 HIP_ARCH=gfx1100 HIP_VISIBLE_DEVICES=0 ROCR_VISIBLE_DEVICES=0 OPENCL_ARGS="-p 0 -d 0 -t 1 --"
     ;;
 
   andoria)
-    run_case "rtx4070ti" CUDA_VISIBLE_DEVICES=0
-    run_case "rtx5070ti" CUDA_VISIBLE_DEVICES=1
+    run_case "rtx4070ti" CUDA_DEV_TARGET=sm_89 CUDA_ARCH=89 CUDA_VISIBLE_DEVICES=0
+    run_case "rtx5070ti" CUDA_DEV_TARGET=sm_120 CUDA_ARCH=120 CUDA_VISIBLE_DEVICES=1
     ;;
 
   epsilon)
@@ -62,16 +62,16 @@ case "$HOST" in
     ;;
 
   zenith)
-    run_case "rtx3090" CUDA_VISIBLE_DEVICES=0
+    run_case "rtx3090" CUDA_DEV_TARGET=sm_86 CUDA_ARCH=86 CUDA_VISIBLE_DEVICES=0
     run_case "rx6800" HIP_DEV_TARGET=gfx1030 HIP_ARCH=gfx1030 HIP_VISIBLE_DEVICES=0 ROCR_VISIBLE_DEVICES=0 OPENCL_ARGS="-p 0 -d 0 -t 1 --"
     ;;
 
   milan0)
-    run_case "a100" CUDA_VISIBLE_DEVICES=0
+    run_case "a100" CUDA_DEV_TARGET=sm_80 CUDA_ARCH=80 CUDA_VISIBLE_DEVICES=0
     ;;
 
   hudson)
-    run_case "h100" CUDA_VISIBLE_DEVICES=0
+    run_case "h100" CUDA_DEV_TARGET=sm_90 CUDA_ARCH=90 CUDA_VISIBLE_DEVICES=0
     ;;
 
   faraday)

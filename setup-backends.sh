@@ -105,7 +105,7 @@ case "$HOST" in
   andoria)
     # RTX 4070 Ti + RTX 5070 Ti
     export BACKENDS="cuda,opencl"
-    export CUDA_DEV_TARGET="${CUDA_DEV_TARGET:-sm_120}"
+    export CUDA_DEV_TARGET="${CUDA_DEV_TARGET:-sm_89}"
     export MACHINE="RTX 4070 Ti"
 
     export NVHPC_ROOT="${NVHPC_ROOT:-/usr/local}"
