@@ -91,7 +91,7 @@ case "$HOST" in
 
   beta)
     # AMD Radeon RX 6800 XT gfx1030 + Vega/gfx900 
-    export BACKENDS="hip,opencl"
+    export BACKENDS="hip"
     export HIP_DEV_TARGET="${HIP_DEV_TARGET:-gfx1201}"
     export MACHINE="AMD RX 6800 XT"
 
