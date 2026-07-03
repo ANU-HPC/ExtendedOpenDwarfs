@@ -369,7 +369,11 @@ def run(args):
             final_args = f"{extra_args} {problem_args}".strip()
 
         lsb_app_name = app_name
-        lsb_name = f"{lsb_app_name}_{args.backend}_{args.compiler}".replace("-", "_")
+        device_label = os.environ.get("DEVICE_LABEL", "").strip()
+        lsb_parts = [lsb_app_name, args.backend, args.compiler, args.size]
+        if device_label:
+            lsb_parts.append(device_label)
+        lsb_name = "_".join(lsb_parts).replace("-", "_")
 
         for i in range(args.iterations):
             print(
