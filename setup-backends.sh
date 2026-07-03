@@ -130,7 +130,7 @@ case "$HOST" in
 
   milan0)
     # NVIDIA A100
-    export BACKENDS="cuda,opencl"
+    export BACKENDS="cuda"
     export CUDA_DEV_TARGET="${CUDA_DEV_TARGET:-sm_80}"
     export MACHINE="${MACHINE:-A100}"
 
@@ -143,7 +143,7 @@ case "$HOST" in
 
   hudson)
     # NVIDIA H100
-    export BACKENDS="cuda,opencl"
+    export BACKENDS="cuda"
     export CUDA_DEV_TARGET="${CUDA_DEV_TARGET:-sm_90}"
     export MACHINE="${MACHINE:-H100}"
 
@@ -156,7 +156,7 @@ case "$HOST" in
 
   faraday)
     # AMD MI300A
-    export BACKENDS="hip,opencl"
+    export BACKENDS="hip"
     export HIP_DEV_TARGET="${HIP_DEV_TARGET:-gfx942}"
     export MACHINE="${MACHINE:-MI300A}"
 
@@ -169,7 +169,7 @@ case "$HOST" in
 
   cousteau)
     # AMD MI100
-    export BACKENDS="hip,opencl"
+    export BACKENDS="hip"
     export HIP_DEV_TARGET="${HIP_DEV_TARGET:-gfx908}"
     export MACHINE="${MACHINE:-MI100}"
 
@@ -182,7 +182,7 @@ case "$HOST" in
 
   zenith)
     # NVIDIA Ampere + AMD RDNA2
-    export BACKENDS="cuda,hip,opencl"
+    export BACKENDS="cuda,hip"
     export CUDA_DEV_TARGET="${CUDA_DEV_TARGET:-sm_86}"
     export HIP_DEV_TARGET="${HIP_DEV_TARGET:-gfx1030}"
     export MACHINE="${MACHINE:-Ampere+RDNA2}"
