@@ -304,7 +304,12 @@ run_size() {
     fi
 
     if compiler_enabled scale-amd; then
-      if host_supports_backend scale-amd; then
+      if [[ "$APP" == "fft" ]]; then
+        # TEMPORARY WORKAROUND:
+        # fft-cuda-scale-amd currently builds but segfaults at runtime on trill/gfx1100.
+        # Remove this guard once the SCALE/AMD FFT compiler/runtime bug is fixed.
+        echo "Skipping FFT CUDA/SCALE-AMD: temporary workaround for compiler/runtime crash"
+      elif host_supports_backend scale-amd; then
         run_one cuda scale-amd "$size" env
       elif [[ "$BACKEND" == "cuda" ]]; then
         echo "Skipping SCALE AMD path: HIP target not available on this host"

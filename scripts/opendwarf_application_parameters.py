@@ -150,10 +150,11 @@ swat = {'name':'swat',
         'full name':'Smith-Waterman'}
 
 #Dwarfs as clusters of Benchmarks:
-dense_linear_algebra = [kmeans,lud]
+dense_linear_algebra = [lud]
 sparse_linear_algebra = [csr]
 spectral_methods = [fft,dwt,cwt]
 n_body_methods = [gem]
+map_reduce = [kmeans]
 structured_grid_methods = [srad]
 unstructured_grid_methods = [cfd]
 combinational_logic = [crc]
