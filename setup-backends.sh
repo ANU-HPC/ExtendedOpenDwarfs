@@ -102,6 +102,19 @@ case "$HOST" in
     export OPENCL_INC_DIR="${OPENCL_INC_DIR:-$ROCM_PATH/include}"
     export OPENCL_LIB_DIR="${OPENCL_LIB_DIR:-$ROCM_PATH/lib}"    ;;
 
+  andoria)
+    # RTX 4070 Ti + RTX 5070 Ti
+    export BACKENDS="cuda,opencl"
+    export CUDA_DEV_TARGET="${CUDA_DEV_TARGET:-sm_120}"
+    export MACHINE="RTX 4070 Ti"
+
+    export NVHPC_ROOT="${NVHPC_ROOT:-/usr/local}"
+    export CUDA_PATH="${CUDA_PATH:-$NVHPC_ROOT/cuda-13.0}"
+
+    # Prefer ROCm OpenCL on mixed AMD/NVIDIA hosts unless overridden.
+    export OPENCL_INC_DIR="${OPENCL_INC_DIR:-$CUDA_PATH/include}"
+    export OPENCL_LIB_DIR="${OPENCL_LIB_DIR:-$CUDA_PATH/lib}"    ;;
+
   milan2)
     # Tesla V100-PCIE-32GB
     export BACKENDS="cuda,opencl"
