@@ -59,6 +59,36 @@ case "$HOST" in
     export OPENCL_INC_DIR="${OPENCL_INC_DIR:-$ROCM_PATH/include}"
     export OPENCL_LIB_DIR="${OPENCL_LIB_DIR:-$ROCM_PATH/lib}"    ;;
 
+  alpha)
+    # NVIDIA Blackwell + AMD RDNA3
+    export BACKENDS="cuda,hip,opencl"
+    export CUDA_DEV_TARGET="${CUDA_DEV_TARGET:-sm_120}"
+    export HIP_DEV_TARGET="${HIP_DEV_TARGET:-gfx1100}"
+    export MACHINE="Blackwell+RDNA3"
+
+    export NVHPC_ROOT="${NVHPC_ROOT:-/usr/local}"
+    export CUDA_PATH="${CUDA_PATH:-$NVHPC_ROOT/cuda-13.0}"
+
+    export ROCM_PATH="${ROCM_PATH:-/opt/rocm-7.1.0}"
+    export HIP_PATH="${HIP_PATH:-$ROCM_PATH}"
+
+    # Prefer ROCm OpenCL on mixed AMD/NVIDIA hosts unless overridden.
+    export OPENCL_INC_DIR="${OPENCL_INC_DIR:-$ROCM_PATH/include}"
+    export OPENCL_LIB_DIR="${OPENCL_LIB_DIR:-$ROCM_PATH/lib}"    ;;
+
+  epsilon)
+    # AMD RX 9070 XT/gfx1201 + Vega/gfx900 
+    export BACKENDS="hip,opencl"
+    export HIP_DEV_TARGET="${HIP_DEV_TARGET:-gfx1201}"
+    export MACHINE="AMD RX 9070 XT"
+
+    export ROCM_PATH="${ROCM_PATH:-/opt/rocm-7.1.0}"
+    export HIP_PATH="${HIP_PATH:-$ROCM_PATH}"
+
+    # Prefer ROCm OpenCL on mixed AMD/NVIDIA hosts unless overridden.
+    export OPENCL_INC_DIR="${OPENCL_INC_DIR:-$ROCM_PATH/include}"
+    export OPENCL_LIB_DIR="${OPENCL_LIB_DIR:-$ROCM_PATH/lib}"    ;;
+
   milan2)
     # Tesla V100-PCIE-32GB
     export BACKENDS="cuda,opencl"
