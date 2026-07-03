@@ -78,7 +78,7 @@ case "$HOST" in
 
   epsilon)
     # AMD RX 9070 XT/gfx1201 + Vega/gfx900 
-    export BACKENDS="hip,opencl"
+    export BACKENDS="hip"
     export HIP_DEV_TARGET="${HIP_DEV_TARGET:-gfx1201}"
     export MACHINE="AMD RX 9070 XT"
 
