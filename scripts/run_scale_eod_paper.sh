@@ -38,12 +38,12 @@ run_case() {
 case "$HOST" in
   trill)
     run_case "rtx5090" CUDA_DEV_TARGET=sm_120 CUDA_ARCH=120 CUDA_VISIBLE_DEVICES=0
-    run_case "w7800" HIP_DEV_TARGET=gfx1100 HIP_ARCH=gfx1100 HIP_VISIBLE_DEVICES=0 ROCR_VISIBLE_DEVICES=0 OPENCL_ARGS="-p 0 -d 0 -t 1 --"
+    run_case "w7800" HIP_DEV_TARGET=gfx1100 HIP_ARCH=gfx1100 ROCR_VISIBLE_DEVICES=0 OPENCL_ARGS="-p 0 -d 0 -t 1 --"
     ;;
 
   alpha)
     run_case "rtx5070ti" CUDA_DEV_TARGET=sm_120 CUDA_ARCH=120 CUDA_VISIBLE_DEVICES=0
-    run_case "rx7900xtx" HIP_DEV_TARGET=gfx1100 HIP_ARCH=gfx1100 HIP_VISIBLE_DEVICES=0 ROCR_VISIBLE_DEVICES=0 OPENCL_ARGS="-p 0 -d 0 -t 1 --"
+    run_case "rx7900xtx" HIP_DEV_TARGET=gfx1100 HIP_ARCH=gfx1100 ROCR_VISIBLE_DEVICES=0 OPENCL_ARGS="-p 0 -d 0 -t 1 --"
     ;;
 
   andoria)
@@ -52,18 +52,18 @@ case "$HOST" in
     ;;
 
   epsilon)
-    run_case "vega" HIP_DEV_TARGET=gfx900 HIP_ARCH=gfx900 HIP_VISIBLE_DEVICES=0 ROCR_VISIBLE_DEVICES=0 OPENCL_ARGS="-p 0 -d 0 -t 1 --"
-    run_case "rx9070xt" HIP_DEV_TARGET=gfx1201 HIP_ARCH=gfx1201 HIP_VISIBLE_DEVICES=1 ROCR_VISIBLE_DEVICES=1 OPENCL_ARGS="-p 0 -d 1 -t 1 --"
+    # Vega/gfx900 is not reliable under this ROCm 7.1 paper environment.
+    run_case "rx9070xt" HIP_DEV_TARGET=gfx1201 HIP_ARCH=gfx1201 ROCR_VISIBLE_DEVICES=1 OPENCL_ARGS="-p 0 -d 0 -t 1 --"
     ;;
 
   beta)
-    run_case "rx6800xt" HIP_DEV_TARGET=gfx1030 HIP_ARCH=gfx1030 HIP_VISIBLE_DEVICES=0 ROCR_VISIBLE_DEVICES=0 OPENCL_ARGS="-p 0 -d 0 -t 1 --"
-    run_case "vega" HIP_DEV_TARGET=gfx900 HIP_ARCH=gfx900 HIP_VISIBLE_DEVICES=1 ROCR_VISIBLE_DEVICES=1 OPENCL_ARGS="-p 0 -d 1 -t 1 --"
+    # Vega/gfx900 is not reliable under this ROCm 7.1 paper environment.
+    run_case "rx6800xt" HIP_DEV_TARGET=gfx1030 HIP_ARCH=gfx1030 ROCR_VISIBLE_DEVICES=0 OPENCL_ARGS="-p 0 -d 0 -t 1 --"
     ;;
 
   zenith)
     run_case "rtx3090" CUDA_DEV_TARGET=sm_86 CUDA_ARCH=86 CUDA_VISIBLE_DEVICES=0
-    run_case "rx6800" HIP_DEV_TARGET=gfx1030 HIP_ARCH=gfx1030 HIP_VISIBLE_DEVICES=0 ROCR_VISIBLE_DEVICES=0 OPENCL_ARGS="-p 0 -d 0 -t 1 --"
+    run_case "rx6800" HIP_DEV_TARGET=gfx1030 HIP_ARCH=gfx1030 ROCR_VISIBLE_DEVICES=0 OPENCL_ARGS="-p 0 -d 0 -t 1 --"
     ;;
 
   milan0)
@@ -75,19 +75,19 @@ case "$HOST" in
     ;;
 
   faraday)
-    run_case "mi300a" HIP_DEV_TARGET=gfx942 HIP_ARCH=gfx942 HIP_VISIBLE_DEVICES=0 ROCR_VISIBLE_DEVICES=0 OPENCL_ARGS="-p 0 -d 0 -t 1 --"
+    run_case "mi300a" HIP_DEV_TARGET=gfx942 HIP_ARCH=gfx942 ROCR_VISIBLE_DEVICES=0 OPENCL_ARGS="-p 0 -d 0 -t 1 --"
     ;;
 
   cousteau)
-    run_case "mi100" HIP_DEV_TARGET=gfx908 HIP_ARCH=gfx908 HIP_VISIBLE_DEVICES=0 ROCR_VISIBLE_DEVICES=0 OPENCL_ARGS="-p 0 -d 0 -t 1 --"
+    run_case "mi100" HIP_DEV_TARGET=gfx908 HIP_ARCH=gfx908 ROCR_VISIBLE_DEVICES=0 OPENCL_ARGS="-p 0 -d 0 -t 1 --"
     ;;
 
   explorer)
-    run_case "mi60" HIP_DEV_TARGET=gfx906 HIP_ARCH=gfx906 HIP_VISIBLE_DEVICES=0 ROCR_VISIBLE_DEVICES=0 OPENCL_ARGS="-p 0 -d 0 -t 1 --"
+    run_case "mi60" HIP_DEV_TARGET=gfx906 HIP_ARCH=gfx906 ROCR_VISIBLE_DEVICES=0 OPENCL_ARGS="-p 0 -d 0 -t 1 --"
     ;;
 
   troi)
-    run_case "vega" HIP_DEV_TARGET=gfx900 HIP_ARCH=gfx900 HIP_VISIBLE_DEVICES=0 ROCR_VISIBLE_DEVICES=0 OPENCL_ARGS="-p 0 -d 0 -t 1 --"
+    run_case "vega" HIP_DEV_TARGET=gfx900 HIP_ARCH=gfx900 ROCR_VISIBLE_DEVICES=0 OPENCL_ARGS="-p 0 -d 0 -t 1 --"
     ;;
 
   *)
