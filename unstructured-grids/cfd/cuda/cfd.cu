@@ -1,4 +1,9 @@
-#include <cuda_runtime.h>
+// SCALE/Clang pre-includes CUDA runtime wrappers before this file.
+// CUDA's host_defines.h may define __noinline__, which breaks libstdc++
+// headers that use __attribute__((__noinline__, ...)).
+#ifdef __noinline__
+#undef __noinline__
+#endif
 
 #include <algorithm>
 #include <cmath>
@@ -8,6 +13,8 @@
 #include <cstdio>
 #include <cstring>
 #include <sys/time.h>
+
+#include <cuda_runtime.h>
 
 #include "lsb.h"
 #include "portable_memory.h"

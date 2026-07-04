@@ -144,7 +144,8 @@ case "$HOST" in
   hudson)
     # NVIDIA H100
     export BACKENDS="cuda"
-    export CUDA_DEV_TARGET="${CUDA_DEV_TARGET:-sm_90}"
+    export CUDA_DEV_TARGET="sm_90"
+    export CUDA_ARCH="90"
     export MACHINE="${MACHINE:-H100}"
 
     export NVHPC_ROOT="${NVHPC_ROOT:-/opt/nvidia/hpc_sdk/Linux_x86_64/2026}"
@@ -225,6 +226,14 @@ if [[ "${BACKENDS}" == *"cuda"* ]]; then
   fi
 
   append_ld_library_path "$CUDA_PATH/lib64"
+
+  # Help SCALE/Clang locate the host C++ standard library.
+  if command -v g++ >/dev/null 2>&1; then
+    GCC_VER="$(g++ -dumpversion | cut -d. -f1)"
+    export CPLUS_INCLUDE_PATH="${CPLUS_INCLUDE_PATH:+$CPLUS_INCLUDE_PATH:}/usr/include/c++/${GCC_VER}:/usr/include/x86_64-linux-gnu/c++/${GCC_VER}:/usr/lib/gcc/x86_64-linux-gnu/${GCC_VER}/include"
+
+    export LIBRARY_PATH="${LIBRARY_PATH:+$LIBRARY_PATH:}/usr/lib/gcc/x86_64-linux-gnu/${GCC_VER}:/usr/lib/x86_64-linux-gnu"
+  fi
 fi
 
 # HIP/ROCm setup
@@ -256,7 +265,7 @@ fi
 
 # Convenience aliases consumed by Make/Python.
 if [[ "${BACKENDS}" == *"cuda"* ]]; then
-  export CUDA_ARCH="${CUDA_ARCH:-${CUDA_DEV_TARGET#sm_}}"
+  export CUDA_ARCH="${CUDA_DEV_TARGET#sm_}"
 fi
 
 if [[ "${BACKENDS}" == *"hip"* ]]; then
