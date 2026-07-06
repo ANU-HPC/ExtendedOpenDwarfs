@@ -204,19 +204,46 @@ parse_lsb_filename <- function(path) {
 
   meta <- str_match(
     base,
-    "^lsb\\.([A-Za-z0-9]+)_([A-Za-z0-9]+)_([A-Za-z0-9_]+)\\.r[0-9]+(?:-([0-9]+))?$"
+    "^lsb\\.([A-Za-z0-9]+)_([A-Za-z0-9]+)_(.+)\\.r[0-9]+(?:-([0-9]+))?$"
   )
 
   if (is.na(meta[1, 1])) {
     return(NULL)
   }
 
+  parts <- str_split(meta[1, 3], "_")[[1]]
+  compiler <- NA_character_
+  rest <- character()
+
+  if (length(parts) >= 2 && paste(parts[1:2], collapse = "_") %in% c("scale_nvidia", "scale_amd")) {
+    compiler <- paste(parts[1:2], collapse = "-")
+    rest <- parts[-c(1, 2)]
+  } else if (length(parts) >= 1) {
+    compiler <- parts[1]
+    rest <- parts[-1]
+  }
+
+  known_sizes <- c("tiny", "small", "medium", "large", "default")
+  problem_size <- NA_character_
+  device_label <- NA_character_
+
+  if (length(rest) >= 1 && rest[1] %in% known_sizes) {
+    problem_size <- rest[1]
+    if (length(rest) >= 2) {
+      device_label <- paste(rest[-1], collapse = "_")
+    }
+  } else if (length(rest) >= 1) {
+    device_label <- paste(rest, collapse = "_")
+  }
+
   list(
     file = base,
     benchmark = meta[1, 2],
     backend = meta[1, 3],
-    compiler = str_replace_all(meta[1, 4], "_", "-"),
-    run = ifelse(is.na(meta[1, 5]), 0L, as.integer(meta[1, 5]))
+    compiler = compiler,
+    problem_size = problem_size,
+    device_label = device_label,
+    run = ifelse(is.na(meta[1, 4]), 0L, as.integer(meta[1, 4]))
   )
 }
 
@@ -280,6 +307,8 @@ parse_lsb_table_fast <- function(lines, header_idx, meta, system, runtime_s) {
     backend = meta$backend,
     compiler = meta$compiler,
     implementation = paste(meta$backend, meta$compiler, sep = "/"),
+    problem_size = meta$problem_size,
+    device_label = meta$device_label,
     run = meta$run,
     region = region,
     region_class = classify_region(region),
@@ -677,33 +706,42 @@ log_msg(
 
 files <- list.files(results_dir, pattern = "^lsb\\.", full.names = TRUE)
 
-if (!is.null(filter_app) && filter_app != "all") {
-  wanted_apps <- str_split(filter_app, ",")[[1]]
-  wanted_apps_regex <- paste(wanted_apps, collapse = "|")
-  files <- files[str_detect(basename(files), paste0("^lsb\\.(", wanted_apps_regex, ")_"))]
-}
-
-if (!is.null(filter_backend) && filter_backend != "all") {
-  wanted_backends <- str_split(filter_backend, ",")[[1]]
-  wanted_backends_regex <- paste(wanted_backends, collapse = "|")
-  files <- files[str_detect(basename(files), paste0("^lsb\\.[A-Za-z0-9]+_(", wanted_backends_regex, ")_"))]
-}
-
 if (length(files) == 0) {
-  stop("No LSB files matched selected filters in ", results_dir)
+  stop("No LSB files found in ", results_dir)
+}
+
+cache_path <- file.path(results_dir, "lsb_cache.rds")
+rebuild_cache <- Sys.getenv("PLOT_LSB_REBUILD_CACHE", "0") == "1"
+use_cache <- Sys.getenv("PLOT_LSB_USE_CACHE", "1") != "0"
+
+cache_fresh <- FALSE
+if (file.exists(cache_path)) {
+  cache_mtime <- file.info(cache_path)$mtime
+  file_mtime <- max(file.info(files)$mtime, na.rm = TRUE)
+  cache_fresh <- !is.na(cache_mtime) && !is.na(file_mtime) && cache_mtime >= file_mtime
 }
 
 sizes <- file.info(files)$size / (1024 * 1024)
-log_msg(
-  "parsing %d LSB files, %.2f MiB total",
-  length(files),
-  sum(sizes, na.rm = TRUE)
-)
 
-df <- parse_files_with_progress(files)
+if (use_cache && !rebuild_cache && cache_fresh) {
+  log_msg("loading cached dataframe from %s", cache_path)
+  df <- readRDS(cache_path)
+} else {
+  log_msg(
+    "parsing %d LSB files, %.2f MiB total",
+    length(files),
+    sum(sizes, na.rm = TRUE)
+  )
 
-if (nrow(df) == 0) {
-  stop("No readable LSB files found in ", results_dir)
+  df <- parse_files_with_progress(files)
+
+  if (nrow(df) == 0) {
+    stop("No readable LSB files found in ", results_dir)
+  }
+
+  saveRDS(df, cache_path)
+  write_csv(df, file.path(results_dir, "lsb_cache.csv"))
+  log_msg("saved parsed dataframe to %s", cache_path)
 }
 
 if (!is.null(filter_app) && filter_app != "all") {
@@ -717,7 +755,7 @@ if (!is.null(filter_backend) && filter_backend != "all") {
 }
 
 if (nrow(df) == 0) {
-  stop("No readable LSB files matched selected filters")
+  stop("No readable LSB rows matched selected filters")
 }
 
 df <- df |>
