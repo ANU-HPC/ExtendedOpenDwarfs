@@ -31,10 +31,14 @@ prepend_path() {
   esac
 }
 
-# Keep these clean. Do not inherit generated compiler/linker flags.
+# Keep these clean. Do not inherit generated compiler/linker/include flags.
 unset CPPFLAGS
 unset LDFLAGS
 unset LDLIBS
+unset CPATH
+unset C_INCLUDE_PATH
+unset CPLUS_INCLUDE_PATH
+unset LIBRARY_PATH
 
 # Keep host compilation stable across NVHPC module environments.
 # Some systems export CC=nvc/CXX=nvc++, which produces host objects that
@@ -156,14 +160,12 @@ case "$HOST" in
     export MACHINE="${MACHINE:-H100}"
 
     # SCALE's Clang incorrectly selects GCC 14 on Hudson, whose C++
-    # include path is incomplete. Use GCC 13 libstdc++ headers/libs instead,
-    # but do not add /usr/lib/gcc/.../include: that exposes GCC intrinsic
-    # headers which SCALE cannot compile in CUDA mode.
+    # include path is incomplete. Keep this workaround SCALE-only so it
+    # does not poison plain NVCC builds.
     if [[ -d /usr/include/c++/13 ]]; then
-      export CPLUS_INCLUDE_PATH="/usr/include/c++/13:/usr/include/x86_64-linux-gnu/c++/13:/usr/include/c++/13/backward${CPLUS_INCLUDE_PATH:+:$CPLUS_INCLUDE_PATH}"
-      export LIBRARY_PATH="/usr/lib/gcc/x86_64-linux-gnu/13:/usr/lib/x86_64-linux-gnu${LIBRARY_PATH:+:$LIBRARY_PATH}"
-      append_ld_library_path "/usr/lib/gcc/x86_64-linux-gnu/13"
-      append_ld_library_path "/usr/lib/x86_64-linux-gnu"
+      export SCALE_CPLUS_INCLUDE_PATH="/usr/include/c++/13:/usr/include/x86_64-linux-gnu/c++/13:/usr/include/c++/13/backward"
+      export SCALE_LIBRARY_PATH="/usr/lib/gcc/x86_64-linux-gnu/13:/usr/lib/x86_64-linux-gnu"
+      export SCALE_LD_LIBRARY_PATH="/usr/lib/gcc/x86_64-linux-gnu/13:/usr/lib/x86_64-linux-gnu"
     fi
 
     export NVHPC_ROOT="${NVHPC_ROOT:-/opt/nvidia/hpc_sdk/Linux_x86_64/2026}"
@@ -244,14 +246,6 @@ if [[ "${BACKENDS}" == *"cuda"* ]]; then
   fi
 
   append_ld_library_path "$CUDA_PATH/lib64"
-
-  # Help SCALE/Clang locate the host C++ standard library.
-  if command -v g++ >/dev/null 2>&1; then
-    GCC_VER="$(g++ -dumpversion | cut -d. -f1)"
-    export CPLUS_INCLUDE_PATH="${CPLUS_INCLUDE_PATH:+$CPLUS_INCLUDE_PATH:}/usr/include/c++/${GCC_VER}:/usr/include/x86_64-linux-gnu/c++/${GCC_VER}:/usr/lib/gcc/x86_64-linux-gnu/${GCC_VER}/include"
-
-    export LIBRARY_PATH="${LIBRARY_PATH:+$LIBRARY_PATH:}/usr/lib/gcc/x86_64-linux-gnu/${GCC_VER}:/usr/lib/x86_64-linux-gnu"
-  fi
 fi
 
 # HIP/ROCm setup
@@ -286,6 +280,38 @@ if [[ "${BACKENDS}" == *"cuda"* ]]; then
   export CUDA_ARCH="${CUDA_DEV_TARGET#sm_}"
 fi
 
+# Hudson-specific CUDA 12.9 / SCALE workarounds.
+# Keep these compiler-specific: SCALE needs libstdc++ paths; plain NVCC
+# only needs the CFD include-order workaround.
+if [[ "$HOST" == "hudson" ]]; then
+  case "${COMPILER:-}" in
+    scale-nvidia|scale-amd)
+      if [[ -n "${SCALE_CPLUS_INCLUDE_PATH:-}" ]]; then
+        export CPLUS_INCLUDE_PATH="$SCALE_CPLUS_INCLUDE_PATH"
+      fi
+      if [[ -n "${SCALE_LIBRARY_PATH:-}" ]]; then
+        export LIBRARY_PATH="$SCALE_LIBRARY_PATH"
+      fi
+      if [[ -n "${SCALE_LD_LIBRARY_PATH:-}" ]]; then
+        export LD_LIBRARY_PATH="$SCALE_LD_LIBRARY_PATH${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+      fi
+      ;;
+    nvcc)
+      if [[ "${APP:-}" == "cfd" ]]; then
+        export NVCCFLAGS="${NVCCFLAGS:-}"
+        case " $NVCCFLAGS " in
+          *" -include string "*) ;;
+          *) export NVCCFLAGS="${NVCCFLAGS:+$NVCCFLAGS }-include string" ;;
+        esac
+        case " $NVCCFLAGS " in
+          *" -include fstream "*) ;;
+          *) export NVCCFLAGS="${NVCCFLAGS:+$NVCCFLAGS }-include fstream" ;;
+        esac
+      fi
+      ;;
+  esac
+fi
+
 if [[ "${BACKENDS}" == *"hip"* ]]; then
   export HIP_ARCH="${HIP_ARCH:-$HIP_DEV_TARGET}"
 fi
@@ -295,6 +321,7 @@ export CXX="${CXX:-/usr/bin/g++}"
 export NVCC="${NVCC:-$(command -v nvcc || true)}"
 export CUDA_NVCC="${CUDA_NVCC:-${NVCC:-$(command -v nvcc || true)}}"
 export HIPCC="${HIPCC:-$(command -v hipcc || true)}"
+
 
 echo "  MACHINE=$MACHINE"
 echo "  BACKENDS=$BACKENDS"

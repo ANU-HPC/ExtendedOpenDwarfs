@@ -15,10 +15,12 @@ extern "C" {
 #include <CL/cl.h>
 #endif
 #else
+#ifndef CL_SUCCESS
 typedef int cl_int;
 typedef unsigned long cl_ulong;
 typedef void* cl_event;
 #define CL_SUCCESS 0
+#endif
 #endif
 
 #define CHECK_ERROR(err) {if (err != CL_SUCCESS) { \
