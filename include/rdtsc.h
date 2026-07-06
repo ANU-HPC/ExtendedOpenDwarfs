@@ -8,16 +8,23 @@ extern "C" {
 
 #include <sys/time.h>
 #include "config.h"
-#define CHECK_ERROR(err) {if (err != CL_SUCCESS) { \
-	fprintf(stderr, "Error: %d\n", err);\
-	exit(1); \
-}}
-
+#if defined(ENABLE_TIMER) || defined(OPENCL)
 #ifdef __APPLE__
 #include <OpenCL/opencl.h>
 #else
 #include <CL/cl.h>
 #endif
+#else
+typedef int cl_int;
+typedef unsigned long cl_ulong;
+typedef void* cl_event;
+#define CL_SUCCESS 0
+#endif
+
+#define CHECK_ERROR(err) {if (err != CL_SUCCESS) { \
+	fprintf(stderr, "Error: %d\n", err);\
+	exit(1); \
+}}
 
 //#define USEGPU 1
 //#define PLATFORM_ID 0

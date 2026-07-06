@@ -155,13 +155,14 @@ case "$HOST" in
     export CUDA_ARCH="90"
     export MACHINE="${MACHINE:-H100}"
 
-    # Hudson/NVHPC 26.1 CUDA headers collide with GCC 13 libstdc++
-    # __noinline__ attributes. Prefer GCC 12 C++ stdlib paths for
-    # SCALE CUDA builds.
-    if [[ -d /usr/include/c++/12 ]]; then
-      export CPLUS_INCLUDE_PATH="/usr/include/c++/12:/usr/include/x86_64-linux-gnu/c++/12:/usr/lib/gcc/x86_64-linux-gnu/12/include${CPLUS_INCLUDE_PATH:+:$CPLUS_INCLUDE_PATH}"
-      export LIBRARY_PATH="/usr/lib/gcc/x86_64-linux-gnu/12:/usr/lib/x86_64-linux-gnu${LIBRARY_PATH:+:$LIBRARY_PATH}"
-      append_ld_library_path "/usr/lib/gcc/x86_64-linux-gnu/12"
+    # SCALE's Clang incorrectly selects GCC 14 on Hudson, whose C++
+    # include path is incomplete. Use GCC 13 libstdc++ headers/libs instead,
+    # but do not add /usr/lib/gcc/.../include: that exposes GCC intrinsic
+    # headers which SCALE cannot compile in CUDA mode.
+    if [[ -d /usr/include/c++/13 ]]; then
+      export CPLUS_INCLUDE_PATH="/usr/include/c++/13:/usr/include/x86_64-linux-gnu/c++/13:/usr/include/c++/13/backward${CPLUS_INCLUDE_PATH:+:$CPLUS_INCLUDE_PATH}"
+      export LIBRARY_PATH="/usr/lib/gcc/x86_64-linux-gnu/13:/usr/lib/x86_64-linux-gnu${LIBRARY_PATH:+:$LIBRARY_PATH}"
+      append_ld_library_path "/usr/lib/gcc/x86_64-linux-gnu/13"
       append_ld_library_path "/usr/lib/x86_64-linux-gnu"
     fi
 
