@@ -295,6 +295,14 @@ if [[ "$HOST" == "hudson" ]]; then
       if [[ -n "${SCALE_LD_LIBRARY_PATH:-}" ]]; then
         export LD_LIBRARY_PATH="$SCALE_LD_LIBRARY_PATH${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
       fi
+
+      export NVCCFLAGS="${NVCCFLAGS:-}"
+      case " $NVCCFLAGS " in
+        *" -include include/odw_cuda_compat.h "*) ;;
+        *)
+          export NVCCFLAGS="${NVCCFLAGS:+$NVCCFLAGS }-include include/odw_cuda_compat.h"
+          ;;
+      esac
       ;;
     nvcc)
       if [[ "${APP:-}" == "cfd" ]]; then
