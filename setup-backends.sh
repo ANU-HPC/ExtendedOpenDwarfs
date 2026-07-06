@@ -31,15 +31,22 @@ prepend_path() {
   esac
 }
 
-# Keep these clean. Do not inherit SYCL-era generated compiler flags.
+# Keep these clean. Do not inherit generated compiler/linker flags.
 unset CPPFLAGS
 unset LDFLAGS
 unset LDLIBS
 
+# Keep host compilation stable across NVHPC module environments.
+# Some systems export CC=nvc/CXX=nvc++, which produces host objects that
+# require NVHPC runtime libraries when linked by nvcc. Default to GCC unless
+# explicitly overridden for this workflow.
+export CC="${ODW_HOST_CC:-/usr/bin/gcc}"
+export CXX="${ODW_HOST_CXX:-/usr/bin/g++}"
+
 export BACKENDS="${BACKENDS:-}"
 export CUDA_DEV_TARGET="${CUDA_DEV_TARGET:-}"
 export HIP_DEV_TARGET="${HIP_DEV_TARGET:-}"
-export SCALE_ROOT="${SCALE_ROOT:-$SCRIPT_DIR/scale-1.7.1-Linux}"
+export SCALE_ROOT="${SCALE_ROOT:-$(dirname "$SCRIPT_DIR")/scale-1.7.1-Linux}"
 
 case "$HOST" in
   trill)
@@ -134,8 +141,8 @@ case "$HOST" in
     export CUDA_DEV_TARGET="${CUDA_DEV_TARGET:-sm_80}"
     export MACHINE="${MACHINE:-A100}"
 
-    export NVHPC_ROOT="${NVHPC_ROOT:-/opt/nvidia/hpc_sdk/Linux_x86_64/24.5}"
-    export CUDA_PATH="${CUDA_PATH:-$NVHPC_ROOT/cuda}"
+    export NVHPC_ROOT="${NVHPC_ROOT:-/opt/nvidia/hpc_sdk/Linux_x86_64/26.5}"
+    export CUDA_PATH="${CUDA_PATH:-$NVHPC_ROOT/cuda/12.9}"
 
     export OPENCL_INC_DIR="${OPENCL_INC_DIR:-$CUDA_PATH/include}"
     export OPENCL_LIB_DIR="${OPENCL_LIB_DIR:-$CUDA_PATH/lib64}"
@@ -147,6 +154,16 @@ case "$HOST" in
     export CUDA_DEV_TARGET="sm_90"
     export CUDA_ARCH="90"
     export MACHINE="${MACHINE:-H100}"
+
+    # Hudson/NVHPC 26.1 CUDA headers collide with GCC 13 libstdc++
+    # __noinline__ attributes. Prefer GCC 12 C++ stdlib paths for
+    # SCALE CUDA builds.
+    if [[ -d /usr/include/c++/12 ]]; then
+      export CPLUS_INCLUDE_PATH="/usr/include/c++/12:/usr/include/x86_64-linux-gnu/c++/12:/usr/lib/gcc/x86_64-linux-gnu/12/include${CPLUS_INCLUDE_PATH:+:$CPLUS_INCLUDE_PATH}"
+      export LIBRARY_PATH="/usr/lib/gcc/x86_64-linux-gnu/12:/usr/lib/x86_64-linux-gnu${LIBRARY_PATH:+:$LIBRARY_PATH}"
+      append_ld_library_path "/usr/lib/gcc/x86_64-linux-gnu/12"
+      append_ld_library_path "/usr/lib/x86_64-linux-gnu"
+    fi
 
     export NVHPC_ROOT="${NVHPC_ROOT:-/opt/nvidia/hpc_sdk/Linux_x86_64/2026}"
     export CUDA_PATH="${CUDA_PATH:-$NVHPC_ROOT/cuda}"
@@ -272,8 +289,8 @@ if [[ "${BACKENDS}" == *"hip"* ]]; then
   export HIP_ARCH="${HIP_ARCH:-$HIP_DEV_TARGET}"
 fi
 
-export CC="${CC:-$(command -v gcc || true)}"
-export CXX="${CXX:-$(command -v g++ || true)}"
+export CC="${CC:-/usr/bin/gcc}"
+export CXX="${CXX:-/usr/bin/g++}"
 export NVCC="${NVCC:-$(command -v nvcc || true)}"
 export CUDA_NVCC="${CUDA_NVCC:-${NVCC:-$(command -v nvcc || true)}}"
 export HIPCC="${HIPCC:-$(command -v hipcc || true)}"

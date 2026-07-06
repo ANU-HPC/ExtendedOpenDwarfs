@@ -41,6 +41,7 @@ INCLUDES := \
 	-I$(LSB_INSTALL_ROOT)/lib/include
 
 COMMON_CPPFLAGS := $(CPPFLAGS) $(INCLUDES)
+HOST_CFLAGS := $(CFLAGS) -fPIE
 
 .PHONY: all clean run \
 	run-$(TARGET_NVCC) run-$(TARGET_SCALE_NVIDIA) run-$(TARGET_SCALE_AMD)
@@ -51,20 +52,20 @@ $(BUILD_DIR):
 	mkdir -p $@
 
 $(BUILD_DIR)/sparse_formats.o: ../src-common/sparse_formats.c | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(COMMON_CPPFLAGS) -c $< -o $@
+	$(CC) $(HOST_CFLAGS) $(COMMON_CPPFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/ziggurat.o: ../src-common/ziggurat.c | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(COMMON_CPPFLAGS) -c $< -o $@
+	$(CC) $(HOST_CFLAGS) $(COMMON_CPPFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/common.o: ../src-common/common.c | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(COMMON_CPPFLAGS) -c $< -o $@
+	$(CC) $(HOST_CFLAGS) $(COMMON_CPPFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/common_args.o: $(OCD_COMMON_ARGS_SRC) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(COMMON_CPPFLAGS) -ffunction-sections -fdata-sections -Wno-deprecated-declarations -c $< -o $@
+	$(CC) $(HOST_CFLAGS) $(COMMON_CPPFLAGS) -ffunction-sections -fdata-sections -Wno-deprecated-declarations -c $< -o $@
 
 
 $(BUILD_DIR)/opts.o: $(OCD_OPTS_SRC) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(CPPFLAGS) $(INCLUDES) -c $< -o $@
+	$(CC) $(HOST_CFLAGS) $(CPPFLAGS) $(INCLUDES) -c $< -o $@
 
 
 $(BUILD_DIR)/csr.nvcc.o: csr.cu | $(BUILD_DIR)
@@ -74,14 +75,14 @@ $(TARGET_NVCC): $(COMMON_C_OBJS) $(CUDA_OBJS)
 	$(CUDA_NVCC) $(NVCCFLAGS) -arch=sm_$(CUDA_ARCH) -o $@ $^ $(LDFLAGS) -Xlinker --gc-sections $(LDLIBS) -lm
 
 $(BUILD_DIR)/scale-%.o: ../src-common/%.c | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(COMMON_CPPFLAGS) -c $< -o $@
+	$(CC) $(HOST_CFLAGS) $(COMMON_CPPFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/scale-common_args.o: $(OCD_COMMON_ARGS_SRC) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(COMMON_CPPFLAGS) -ffunction-sections -fdata-sections -Wno-deprecated-declarations -c $< -o $@
+	$(CC) $(HOST_CFLAGS) $(COMMON_CPPFLAGS) -ffunction-sections -fdata-sections -Wno-deprecated-declarations -c $< -o $@
 
 
 $(BUILD_DIR)/scale-opts.o: $(OCD_OPTS_SRC) | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(CPPFLAGS) $(INCLUDES) -c $< -o $@
+	$(CC) $(HOST_CFLAGS) $(CPPFLAGS) $(INCLUDES) -c $< -o $@
 
 
 $(BUILD_DIR)/scale-nvidia-csr.o: csr.cu | $(BUILD_DIR)

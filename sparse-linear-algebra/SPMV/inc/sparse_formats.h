@@ -24,7 +24,9 @@
 #include<time.h>
 #include<string.h>
 
+#ifndef ODW_SPMV_NO_COMMON_ARGS
 #include "../../../include/common_args.h"
+#endif
 #include "ziggurat.h"
 
 /*

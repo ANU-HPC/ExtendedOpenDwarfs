@@ -8,8 +8,12 @@
 
 extern "C" {
 #include "../../../include/lsb.h"
-#include "../inc/common.h"
+#define ODW_SPMV_NO_COMMON_ARGS
 #include "../inc/sparse_formats.h"
+
+void check(int b, const char* msg);
+void* float_new_array(const size_t N, const char* error_msg);
+void* float_array_realloc(void* ptr, const size_t N, const char* error_msg);
 }
 
 #define MIN_TIME_SEC 2
