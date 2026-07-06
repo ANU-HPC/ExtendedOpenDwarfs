@@ -68,6 +68,7 @@ INCLUDES := \
 	-I$(LSB_INSTALL_ROOT)/lib/include
 
 COMMON_CPPFLAGS := $(CPPFLAGS) $(INCLUDES) -DNO_UI
+CUDA_CPPFLAGS := $(COMMON_CPPFLAGS) -DODW_GEM_NO_OPENCL_TYPES
 
 .PHONY: all clean run \
 	run-$(TARGET_NVCC) run-$(TARGET_SCALE_NVIDIA) run-$(TARGET_SCALE_AMD) \
@@ -85,7 +86,7 @@ $(BUILD_DIR)/%.o: ../%.cpp | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) $(COMMON_CPPFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/calculate_potential.nvcc.o: calculate_potential.cu | $(BUILD_DIR)
-	$(CUDA_NVCC) $(NVCCFLAGS) $(COMMON_CPPFLAGS) -arch=sm_$(CUDA_ARCH) -c $< -o $@
+	$(CUDA_NVCC) $(NVCCFLAGS) $(CUDA_CPPFLAGS) -arch=sm_$(CUDA_ARCH) -c $< -o $@
 
 $(TARGET_NVCC): $(COMMON_C_OBJS) $(COMMON_CXX_OBJS) $(CUDA_OBJS)
 	$(CUDA_NVCC) $(NVCCFLAGS) -arch=sm_$(CUDA_ARCH) -o $@ $^ $(LDFLAGS) $(LDLIBS) -lm
@@ -101,13 +102,13 @@ $(BUILD_DIR)/scale-nvidia-calculate_potential.o: calculate_potential.cu | $(BUIL
 	nvcc \
 		$(if $(CUDA_PATH),--cuda-path="$(CUDA_PATH)") \
 		-gencode arch=compute_$(CUDA_ARCH),code=sm_$(CUDA_ARCH) \
-		$(NVCCFLAGS) $(COMMON_CPPFLAGS) \
+		$(NVCCFLAGS) $(CUDA_CPPFLAGS) \
 		-c $< -o $@
 
 $(BUILD_DIR)/scale-amd-calculate_potential.o: calculate_potential.cu | $(BUILD_DIR)
 	source "$(SCALE_ROOT)/bin/scaleenv" $(HIP_ARCH) && \
 	nvcc \
-		$(NVCCFLAGS) $(COMMON_CPPFLAGS) \
+		$(NVCCFLAGS) $(CUDA_CPPFLAGS) \
 		-c $< -o $@
 
 $(TARGET_SCALE_NVIDIA): $(SCALE_COMMON_C_OBJS) $(SCALE_COMMON_CXX_OBJS) $(SCALE_NVIDIA_CUDA_OBJS)

@@ -21,10 +21,16 @@
 #define __CALCULATIONS_H__
 
 #include "structures.h"
+
+#ifdef ODW_GEM_NO_OPENCL_TYPES
+typedef int cl_int;
+typedef float cl_float;
+#else
 #ifdef __APPLE__
 #include <OpenCL/opencl.h>
 #else
 #include <CL/cl.h>
+#endif
 #endif
 
 /* definitions for operations that project_grd can do */
