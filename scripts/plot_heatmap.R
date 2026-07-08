@@ -130,29 +130,24 @@ if (metric == "runtime") {
     distinct(system, benchmark, size, device, implementation, run, runtime_s) |>
     filter(!is.na(runtime_s))
 } else {
-  # IMPORTANT: time_us for a given region is repeated once per pass of the
-  # stabilizing loop (the "repeats_to_two_seconds" column, read into
-  # repeat_id), which keeps re-running the same measured work until ~2s of
-  # wall time has elapsed. A faster implementation therefore completes more
-  # passes in that fixed window than a slower one. Summing time_us across
-  # all passes without correcting for this just recovers ~2 seconds
-  # regardless of which implementation is actually faster -- it measures
-  # the stabilization budget, not performance. Dividing by the number of
-  # distinct repeat_id values converts the sum back into "time per single
-  # pass", which is what's actually comparable across implementations.
+  # df is now pre-aggregated per (file, region) rather than per raw row --
+  # total_time_us and n_repeats already reflect the sum/count across every
+  # repeat-loop pass for that specific region in that specific file (see
+  # parse_lsb_table_dt() in lsb_common.R). Each region is normalized to
+  # "time per single pass" INDIVIDUALLY before summing, rather than summing
+  # raw totals across regions first and dividing by one shared repeat count
+  # -- a one-time setup region and a kernel region measured hundreds of
+  # times within the same file do not share a repeat count, so normalizing
+  # after combining them would have been wrong.
   region_filter <- df
   if (metric == "kernel") {
     region_filter <- df |> filter(region_class == "Kernel")
   }
 
   runtime_df <- region_filter |>
+    mutate(time_us_per_repeat = total_time_us / n_repeats) |>
     group_by(system, benchmark, size, device, implementation, run) |>
-    summarise(
-      summed_time_us = sum(time_us),
-      n_repeats = n_distinct(repeat_id),
-      .groups = "drop"
-    ) |>
-    mutate(runtime_s = (summed_time_us / n_repeats) / 1e6)
+    summarise(runtime_s = sum(time_us_per_repeat) / 1e6, .groups = "drop")
 }
 
 if (nrow(runtime_df) == 0) {
@@ -269,55 +264,95 @@ max_abs_log2 <- max(abs(heatmap_df$log2_ratio), na.rm = TRUE)
 # regardless of whether the data skews toward SCALE-faster or SCALE-slower.
 colour_limit <- max(max_abs_log2, 0.1)
 
-heatmap_plot <- ggplot(
-  heatmap_df,
-  aes(x = device, y = benchmark, fill = log2_ratio)
-) +
-  geom_tile(colour = "white", linewidth = 0.4) +
-  geom_text(
-    aes(label = paste0(number(ratio, accuracy = 0.01), "x")),
-    size = 3,
-    colour = "black"
+dup_check <- heatmap_df |>
+  count(benchmark, size, device) |>
+  filter(n > 1)
+
+if (nrow(dup_check) > 0) {
+  log_msg(
+    "WARNING: %d (benchmark, size, device) combination(s) have more than one row -- ",
+    nrow(dup_check)
+  )
+  log_msg(
+    "this means both an nvidia-architecture pair AND an amd-architecture pair have complete data under the same device tag, which should be physically impossible (an AMD-ISA binary can't run on an NVIDIA GPU or vice versa). This usually indicates a device-tagging bug upstream in the benchmark harness, not in this script. Faceting by architecture below so these don't silently overlap in the plot."
+  )
+  print(dup_check, n = 20)
+}
+
+heatmap_plot_fn <- function(data, colour_limit) {
+  ggplot(
+    data,
+    aes(x = device, y = benchmark, fill = log2_ratio)
   ) +
-  facet_wrap(~size, nrow = 1, labeller = labeller(size = str_to_title)) +
-  scale_fill_gradient2(
-    low = "#1F77B4",
-    mid = "white",
-    high = "#D62728",
-    midpoint = 0,
-    limits = c(-colour_limit, colour_limit),
-    breaks = c(-colour_limit, 0, colour_limit),
-    labels = c("SCALE faster", "parity", "SCALE slower"),
-    name = NULL
-  ) +
-  labs(
-    x = NULL,
-    y = NULL,
-    title = paste0("SCALE vs native toolchain: ", metric_label, " ratio"),
-    subtitle = paste0(
-      "Cell = median(SCALE ", metric_label, ") / median(native ", metric_label,
-      ") per benchmark, size, device"
+    geom_tile(colour = "white", linewidth = 0.4) +
+    geom_text(
+      aes(label = paste0(number(ratio, accuracy = 0.01), "x")),
+      size = 3,
+      colour = "black"
+    ) +
+    facet_wrap(~size, nrow = 1, labeller = labeller(size = str_to_title)) +
+    scale_fill_gradient2(
+      low = "#1F77B4",
+      mid = "white",
+      high = "#D62728",
+      midpoint = 0,
+      limits = c(-colour_limit, colour_limit),
+      breaks = c(-colour_limit, 0, colour_limit),
+      labels = c("SCALE faster", "parity", "SCALE slower"),
+      name = NULL
+    ) +
+    theme_bw(base_size = 13) +
+    theme(
+      axis.text.x = element_text(angle = 40, hjust = 1),
+      panel.grid = element_blank(),
+      legend.position = "bottom",
+      legend.key.width = unit(2.2, "cm")
     )
-  ) +
-  theme_bw(base_size = 13) +
-  theme(
-    axis.text.x = element_text(angle = 40, hjust = 1),
-    panel.grid = element_blank(),
-    legend.position = "bottom",
-    legend.key.width = unit(2.2, "cm")
+}
+
+# Two independent plots rather than one facet_grid(architecture ~ size) --
+# a shared x-axis across both architectures meant every AMD device showed
+# up as an empty column under the NVIDIA rows and vice versa, which reads
+# as "this device belongs to both architectures" even though it's just an
+# artifact of facet_grid forcing a common axis. Splitting into separate
+# figures means each one's device axis only ever shows devices that
+# actually have data for that architecture.
+architecture_labels <- list(nvidia = "NVIDIA", amd = "AMD")
+
+for (arch in names(architecture_labels)) {
+  arch_df <- heatmap_df |> filter(architecture == arch)
+
+  if (nrow(arch_df) == 0) {
+    log_msg("skipping %s heatmap: no complete native/SCALE pairs for this architecture", arch)
+    next
+  }
+
+  arch_label <- architecture_labels[[arch]]
+  n_devices <- n_distinct(arch_df$device)
+  n_benchmarks <- n_distinct(arch_df$benchmark)
+
+  p <- heatmap_plot_fn(arch_df, colour_limit) +
+    labs(
+      x = NULL,
+      y = NULL,
+      title = paste0("SCALE vs native toolchain (", arch_label, "): ", metric_label, " ratio"),
+      subtitle = paste0(
+        "Cell = median(SCALE ", metric_label, ") / median(native ", metric_label,
+        ") per benchmark, size, device"
+      )
+    )
+
+  out_path <- file.path(out_dir, paste0("scale_vs_native_heatmap_", arch, ".pdf"))
+
+  ggsave(
+    out_path,
+    p,
+    width = max(6, 2.4 * n_devices + 2),
+    height = max(3, 0.55 * n_benchmarks + 2),
+    limitsize = FALSE
   )
 
-heatmap_path <- file.path(out_dir, "scale_vs_native_heatmap.pdf")
-n_devices <- n_distinct(heatmap_df$device)
-n_benchmarks <- n_distinct(heatmap_df$benchmark)
+  log_msg("wrote %s heatmap: %s (%d benchmark(s), %d device(s))", arch_label, out_path, n_benchmarks, n_devices)
+}
 
-ggsave(
-  heatmap_path,
-  heatmap_plot,
-  width = max(8, 2.4 * n_devices + 2),
-  height = max(4, 0.55 * n_benchmarks + 2),
-  limitsize = FALSE
-)
-
-log_msg("wrote heatmap: %s", heatmap_path)
-message("Wrote heatmap and ratio table to: ", out_dir)
+message("Wrote heatmaps and ratio table to: ", out_dir)

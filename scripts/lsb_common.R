@@ -15,7 +15,17 @@ suppressPackageStartupMessages({
   library(tibble)
   library(parallel)
   library(digest)
+  library(data.table)
 })
+
+# File-level parallelism is already handled by mclapply across many files
+# at once (see get_worker_count()). fread() also has its own internal
+# multithreading via OpenMP -- left at its default, that would mean every
+# forked worker ALSO tries to spawn several threads for its own fread()
+# call, oversubscribing the machine (e.g. 256 mclapply workers x 4 fread
+# threads each = 1024 threads competing for way fewer cores). Pinning fread
+# to 1 thread here means all the parallelism comes from one place only.
+data.table::setDTthreads(1)
 
 SCRIPT_START <- if (exists("SCRIPT_START")) SCRIPT_START else Sys.time()
 
@@ -40,7 +50,14 @@ get_worker_count <- function(n_files) {
     cores <- 1L
   }
 
-  max(1L, min(requested, cores, n_files))
+  n_workers <- max(1L, min(requested, cores, n_files))
+
+  log_msg(
+    "worker count: using %d (requested=%d via PLOT_LSB_JOBS, detected physical cores=%s, n_files=%d)",
+    n_workers, requested, ifelse(is.na(parallel::detectCores(logical = FALSE)), "NA", cores), n_files
+  )
+
+  n_workers
 }
 
 # ---------------------------------------------------------------------------
@@ -179,15 +196,22 @@ parse_lsb_filename <- function(path) {
 }
 
 extract_runtime <- function(lines) {
-  runtime_line <- lines |>
-    str_subset("^# Runtime:") |>
-    first()
+  # NOTE: this used to be `lines |> str_subset(...) |> first()` followed by
+  # `if (is.na(runtime_line))`. purrr::first() on zero matches returns NULL,
+  # not NA -- and is.na(NULL) is logical(0), not FALSE, so `if (is.na(NULL))`
+  # crashes with "argument is of length zero" instead of gracefully
+  # returning NA. This silently killed any file lacking a "# Runtime:" line
+  # anywhere in the scanned window, which turned out to be the vast
+  # majority of files across the suite (most benchmarks apparently don't
+  # emit that header at all -- only a minority do). Checking length()
+  # directly avoids the NULL/NA confusion entirely.
+  matches <- str_subset(lines, "^# Runtime:")
 
-  if (is.na(runtime_line)) {
+  if (length(matches) == 0) {
     return(NA_real_)
   }
 
-  as.numeric(str_match(runtime_line, "# Runtime:\\s*([0-9.]+)\\s*s")[1, 2])
+  as.numeric(str_match(matches[1], "# Runtime:\\s*([0-9.]+)\\s*s")[1, 2])
 }
 
 extract_nodename_fast <- function(lines) {
@@ -200,58 +224,53 @@ extract_nodename_fast <- function(lines) {
   sub("\\..*$", "", sub("^# Nodename:\\s*", "", lines[[idx]]))
 }
 
-parse_lsb_table_fast <- function(lines, header_idx, meta, system, runtime_s) {
-  header <- str_split(str_squish(lines[[header_idx]]), "\\s+")[[1]]
+parse_lsb_table_dt <- function(dt, meta, system, runtime_s) {
+  if (nrow(dt) == 0) {
+    return(NULL)
+  }
 
-  region_pos <- match("region", header)
-  time_pos <- match("time", header)
-  id_pos <- match("id", header)
-  overhead_pos <- match("overhead", header)
-  repeat_pos <- match("repeats_to_two_seconds", header)
+  col_names <- names(dt)
+  region_pos <- match("region", col_names)
+  time_pos <- match("time", col_names)
+  repeat_pos <- match("repeats_to_two_seconds", col_names)
 
   if (is.na(region_pos) || is.na(time_pos)) {
     return(NULL)
   }
 
-  data_lines <- lines[(header_idx + 1):length(lines)]
-  data_lines <- data_lines[
-    !str_detect(data_lines, "^#") &
-      !str_detect(data_lines, "^\\s*$")
-  ]
+  # IMPORTANT: this aggregates away individual rows *inside this one file*
+  # immediately, rather than returning every raw row for bind_rows() to
+  # combine across all 16000+ files. The stabilizing loop means a single
+  # file can carry hundreds of thousands of near-duplicate rows (the same
+  # region measured over and over until ~2s elapses); across the whole
+  # results tree that adds up to billions of rows and hundreds of GB if
+  # carried through as-is, which is what caused the OOM kill. Nothing
+  # downstream (this heatmap, or the repeats-normalization logic) actually
+  # needs row-level granularity -- only the per-region total time and how
+  # many repeats it was measured over, both of which data.table can compute
+  # in C in a fraction of a second per file.
+  slim <- data.table(
+    region = as.character(dt[[region_pos]]),
+    time_us = suppressWarnings(as.numeric(dt[[time_pos]]))
+  )
 
-  if (length(data_lines) == 0) {
+  if (!is.na(repeat_pos)) {
+    slim[, repeat_id := suppressWarnings(as.integer(dt[[repeat_pos]]))]
+  } else {
+    slim[, repeat_id := 0L]
+  }
+  slim[is.na(repeat_id), repeat_id := 0L]
+
+  slim <- slim[!is.na(time_us)]
+  if (nrow(slim) == 0) {
     return(NULL)
   }
 
-  fields <- str_split_fixed(str_squish(data_lines), "\\s+", n = length(header))
-
-  time_us <- suppressWarnings(as.numeric(fields[, time_pos]))
-  keep <- !is.na(time_us)
-
-  if (!any(keep)) {
-    return(NULL)
-  }
-
-  id <- if (!is.na(id_pos)) {
-    suppressWarnings(as.integer(fields[keep, id_pos]))
-  } else {
-    NA_integer_
-  }
-
-  overhead <- if (!is.na(overhead_pos)) {
-    suppressWarnings(as.numeric(fields[keep, overhead_pos]))
-  } else {
-    NA_real_
-  }
-
-  repeat_id <- if (!is.na(repeat_pos)) {
-    suppressWarnings(as.integer(fields[keep, repeat_pos]))
-  } else {
-    rep(0L, sum(keep))
-  }
-  repeat_id[is.na(repeat_id)] <- 0L
-
-  region <- fields[keep, region_pos]
+  agg <- slim[, .(
+    total_time_us = sum(time_us),
+    n_rows = .N,
+    n_repeats = uniqueN(repeat_id)
+  ), by = region]
 
   tibble(
     file = meta$file,
@@ -264,14 +283,63 @@ parse_lsb_table_fast <- function(lines, header_idx, meta, system, runtime_s) {
     device = meta$device,
     run = meta$run,
     run_variant = meta$run_variant,
-    region = region,
-    region_class = classify_region(region),
-    repeat_id = repeat_id,
-    id = id,
-    time_us = time_us[keep],
-    overhead = overhead,
+    region = agg$region,
+    region_class = classify_region(agg$region),
+    total_time_us = agg$total_time_us,
+    n_rows = agg$n_rows,
+    n_repeats = agg$n_repeats,
     runtime_s = runtime_s
   )
+}
+
+# How many leading lines to sniff for the header/metadata block before
+# falling back to a full read. Every file we've inspected has its header
+# within the first ~10 lines, so 200 leaves generous headroom without ever
+# touching the (possibly huge) data section below it.
+LSB_HEADER_SCAN_LINES <- 200L
+
+find_lsb_header <- function(path) {
+  lines <- readLines(path, n = LSB_HEADER_SCAN_LINES, warn = FALSE)
+  header_idx <- grep("\\bregion\\b.*\\bid\\b.*\\btime\\b.*\\boverhead\\b", lines)[1]
+
+  if (is.na(header_idx)) {
+    header_idx <- which(str_detect(lines, "^\\s*\\S+\\s+.*\\s+region\\s+.*\\stime\\s+"))[1]
+  }
+
+  if (!is.na(header_idx)) {
+    return(list(lines = lines, header_idx = header_idx, full_read = FALSE))
+  }
+
+  # Header wasn't in the sampled window -- rare based on every file we've
+  # seen, but fall back to a full read for this one file rather than
+  # silently dropping it. Warn so unusual files are visible in the log
+  # instead of just vanishing.
+  warning(
+    "Header not found in first ", LSB_HEADER_SCAN_LINES, " lines of ",
+    basename(path), " -- falling back to a full read for this file"
+  )
+  lines <- readLines(path, warn = FALSE)
+  header_idx <- grep("\\bregion\\b.*\\bid\\b.*\\btime\\b.*\\boverhead\\b", lines)[1]
+  if (is.na(header_idx)) {
+    header_idx <- which(str_detect(lines, "^\\s*\\S+\\s+.*\\s+region\\s+.*\\stime\\s+"))[1]
+  }
+
+  list(lines = lines, header_idx = header_idx, full_read = TRUE)
+}
+
+# extract_runtime() only looks within whatever line window it's given. The
+# header-sniff window above covers the case where "# Runtime:" sits with
+# the other header comments near the top of the file (true in every sample
+# we've seen so far). If it's ever instead appended as a trailer at the
+# very end of the file, this cheap tail-read catches that case too, without
+# falling back to reading the whole file just to find one line.
+extract_runtime_from_tail <- function(path, n = 20L) {
+  tail_lines <- tryCatch(
+    system2("tail", c("-n", as.character(n), shQuote(path)), stdout = TRUE, stderr = FALSE),
+    error = function(e) character(0),
+    warning = function(w) character(0)
+  )
+  extract_runtime(tail_lines)
 }
 
 read_lsb_file_fast <- function(path) {
@@ -280,20 +348,42 @@ read_lsb_file_fast <- function(path) {
     return(NULL)
   }
 
-  lines <- readLines(path, warn = FALSE)
-  system <- extract_nodename_fast(lines)
-  runtime_s <- extract_runtime(lines)
+  header <- find_lsb_header(path)
 
-  header_idx <- grep("\\bregion\\b.*\\bid\\b.*\\btime\\b.*\\boverhead\\b", lines)[1]
-  if (is.na(header_idx)) {
-    header_idx <- which(str_detect(lines, "^\\s*\\S+\\s+.*\\s+region\\s+.*\\stime\\s+"))[1]
-  }
-
-  if (is.na(header_idx)) {
+  if (is.na(header$header_idx)) {
+    warning("Could not locate LSB data header in ", basename(path))
     return(NULL)
   }
 
-  parse_lsb_table_fast(lines, header_idx, meta, system, runtime_s)
+  system <- extract_nodename_fast(header$lines)
+  runtime_s <- extract_runtime(header$lines)
+
+  if (is.na(runtime_s) && !header$full_read) {
+    runtime_s <- extract_runtime_from_tail(path)
+  }
+
+  col_names <- str_split(str_squish(header$lines[[header$header_idx]]), "\\s+")[[1]]
+
+  dt <- tryCatch(
+    data.table::fread(
+      path,
+      skip = header$header_idx,
+      header = FALSE,
+      col.names = col_names,
+      fill = TRUE,
+      showProgress = FALSE
+    ),
+    error = function(e) {
+      warning("fread failed on ", basename(path), ": ", conditionMessage(e))
+      NULL
+    }
+  )
+
+  if (is.null(dt) || nrow(dt) == 0) {
+    return(NULL)
+  }
+
+  parse_lsb_table_dt(dt, meta, system, runtime_s)
 }
 
 parse_files_with_progress <- function(files) {
@@ -310,11 +400,32 @@ parse_files_with_progress <- function(files) {
   files <- files[order(-file_sizes)]
 
   parse_one <- function(i) {
-    rows <- read_lsb_file_fast(files[[i]])
+    path <- files[[i]]
+    err_msg <- NULL
+
+    # Wrapping the whole per-file call is deliberate: with 16000+ files
+    # pulled from multiple hosts and harness invocations, some fraction
+    # being truncated, zero-byte, or otherwise malformed is basically
+    # guaranteed. Without this, mclapply silently converts an error inside
+    # any single forked worker into a try-error object instead of the
+    # list(rows=, rows_n=) structure parse_one() is supposed to return --
+    # which then crashes bind_rows() far downstream with a confusing
+    # "$ operator is invalid for atomic vectors" error that doesn't say
+    # which file caused it. This keeps one bad file from taking down the
+    # entire parse, and reports exactly which file and why.
+    rows <- tryCatch(
+      read_lsb_file_fast(path),
+      error = function(e) {
+        err_msg <<- conditionMessage(e)
+        NULL
+      }
+    )
 
     list(
       rows = rows,
-      rows_n = if (is.null(rows)) 0L else nrow(rows)
+      rows_n = if (is.null(rows)) 0L else nrow(rows),
+      file = basename(path),
+      error = err_msg
     )
   }
 
@@ -345,6 +456,22 @@ parse_files_with_progress <- function(files) {
 
   close(pb)
 
+  failed <- Filter(function(x) !is.null(x$error), parsed)
+
+  if (length(failed) > 0) {
+    log_msg(
+      "%d of %d file(s) failed to parse and were skipped (not included in results):",
+      length(failed), length(files)
+    )
+    show_n <- min(length(failed), 30)
+    for (f in failed[seq_len(show_n)]) {
+      log_msg("  %s: %s", f$file, f$error)
+    }
+    if (length(failed) > show_n) {
+      log_msg("  ... and %d more (see full list by re-running with a smaller file set to isolate)", length(failed) - show_n)
+    }
+  }
+
   bind_rows(lapply(parsed, function(x) x$rows))
 }
 
@@ -359,7 +486,13 @@ parse_files_with_progress <- function(files) {
 # ---------------------------------------------------------------------------
 
 lsb_list_files <- function(results_dir) {
-  list.files(results_dir, pattern = "^lsb\\.", full.names = TRUE)
+  # recursive = TRUE is required: rsync-based collection layouts commonly
+  # drop each host's results into a subdirectory (results/alpha/,
+  # results/excl/, ...), and list.files() does not descend into
+  # subdirectories by default. Without this, files outside the top level
+  # of results_dir are silently invisible -- no error, no warning, just an
+  # incomplete file list.
+  list.files(results_dir, pattern = "^lsb\\.", full.names = TRUE, recursive = TRUE)
 }
 
 lsb_manifest <- function(files) {

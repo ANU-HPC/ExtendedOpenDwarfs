@@ -16,6 +16,7 @@ r-tidyr = "*"
 r-patchwork = "*"
 r-scales = "*"
 r-rcolorbrewer = "*"
+"r-data.table" = ">=1.17.8,<2"
 
 [tasks]
 plot-lsb = "Rscript scripts/plot_lsb.R results"
