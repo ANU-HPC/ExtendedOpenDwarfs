@@ -208,8 +208,8 @@ case "$HOST" in
     export HIP_DEV_TARGET="${HIP_DEV_TARGET:-gfx1030}"
     export MACHINE="${MACHINE:-Ampere+RDNA2}"
 
-    export NVHPC_ROOT="${NVHPC_ROOT:-/opt/nvidia/hpc_sdk/Linux_x86_64/26.3}"
-    export CUDA_PATH="${CUDA_PATH:-$NVHPC_ROOT/cuda/13.1}"
+    export NVHPC_ROOT="${NVHPC_ROOT:-/opt/nvidia/hpc_sdk/Linux_x86_64/26.5}"
+    export CUDA_PATH="${CUDA_PATH:-$NVHPC_ROOT/cuda/12.9}"
 
     export ROCM_PATH="${ROCM_PATH:-/opt/rocm}"
     export HIP_PATH="${HIP_PATH:-$ROCM_PATH}"
