@@ -300,7 +300,7 @@ if [[ "$HOST" == "hudson" ]]; then
       case " $NVCCFLAGS " in
         *" -include include/odw_cuda_compat.h "*) ;;
         *)
-          export NVCCFLAGS="${NVCCFLAGS:+$NVCCFLAGS }-include include/odw_cuda_compat.h"
+          export NVCCFLAGS="${NVCCFLAGS:+$NVCCFLAGS }-include ${SCRIPT_DIR}/include/odw_cuda_compat.h"
           ;;
       esac
       ;;
