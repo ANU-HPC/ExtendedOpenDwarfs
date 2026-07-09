@@ -402,6 +402,7 @@ parse_files_with_progress <- function(files) {
   parse_one <- function(i) {
     path <- files[[i]]
     err_msg <- NULL
+    warn_msgs <- character(0)
 
     # Wrapping the whole per-file call is deliberate: with 16000+ files
     # pulled from multiple hosts and harness invocations, some fraction
@@ -413,11 +414,29 @@ parse_files_with_progress <- function(files) {
     # "$ operator is invalid for atomic vectors" error that doesn't say
     # which file caused it. This keeps one bad file from taking down the
     # entire parse, and reports exactly which file and why.
-    rows <- tryCatch(
-      read_lsb_file_fast(path),
-      error = function(e) {
-        err_msg <<- conditionMessage(e)
-        NULL
+    #
+    # withCallingHandlers() around the tryCatch additionally captures
+    # warning() calls (e.g. "Could not locate LSB data header in ...",
+    # raised when a file's header doesn't match the expected pattern and
+    # read_lsb_file_fast() returns NULL cleanly rather than erroring).
+    # Without this, such warnings vanish entirely: R does NOT automatically
+    # propagate warnings raised inside forked mclapply workers back to the
+    # parent process's console the way it does for a plain sequential
+    # lapply(). A file could silently contribute zero rows with no error
+    # AND no visible explanation of why -- exactly the failure mode that
+    # made a missing benchmark look like a mystery instead of a logged
+    # warning.
+    rows <- withCallingHandlers(
+      tryCatch(
+        read_lsb_file_fast(path),
+        error = function(e) {
+          err_msg <<- conditionMessage(e)
+          NULL
+        }
+      ),
+      warning = function(w) {
+        warn_msgs <<- c(warn_msgs, conditionMessage(w))
+        invokeRestart("muffleWarning")
       }
     )
 
@@ -425,7 +444,8 @@ parse_files_with_progress <- function(files) {
       rows = rows,
       rows_n = if (is.null(rows)) 0L else nrow(rows),
       file = basename(path),
-      error = err_msg
+      error = err_msg,
+      warnings = if (length(warn_msgs) > 0) paste(warn_msgs, collapse = " | ") else NULL
     )
   }
 
@@ -457,6 +477,7 @@ parse_files_with_progress <- function(files) {
   close(pb)
 
   failed <- Filter(function(x) !is.null(x$error), parsed)
+  warned <- Filter(function(x) is.null(x$error) && !is.null(x$warnings), parsed)
 
   if (length(failed) > 0) {
     log_msg(
@@ -469,6 +490,20 @@ parse_files_with_progress <- function(files) {
     }
     if (length(failed) > show_n) {
       log_msg("  ... and %d more (see full list by re-running with a smaller file set to isolate)", length(failed) - show_n)
+    }
+  }
+
+  if (length(warned) > 0) {
+    log_msg(
+      "%d of %d file(s) produced a warning during parsing (may still have contributed 0 rows -- check rows_n if a whole benchmark looks missing):",
+      length(warned), length(files)
+    )
+    show_n <- min(length(warned), 30)
+    for (f in warned[seq_len(show_n)]) {
+      log_msg("  %s (rows=%d): %s", f$file, f$rows_n, f$warnings)
+    }
+    if (length(warned) > show_n) {
+      log_msg("  ... and %d more", length(warned) - show_n)
     }
   }
 

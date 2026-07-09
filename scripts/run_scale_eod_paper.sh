@@ -85,8 +85,24 @@ case "$HOST" in
     # clinfo rather than assumed.
     run_case "rtx4070ti" BACKEND=cuda COMPILER=nvcc \
       CUDA_DEV_TARGET=sm_89 CUDA_ARCH=89 CUDA_VISIBLE_DEVICES=0
-    run_case "rtx5070ti" BACKEND=cuda COMPILER=nvcc \
-      CUDA_DEV_TARGET=sm_120 CUDA_ARCH=120 CUDA_VISIBLE_DEVICES=1
+    run_case "rtx4070ti" BACKEND=cuda COMPILER=scale-nvidia \
+      CUDA_DEV_TARGET=sm_89 CUDA_ARCH=89 CUDA_VISIBLE_DEVICES=0
+
+    # rtx5070ti on this host is intentionally NOT collected. alpha also
+    # has an RTX 5070 Ti, and "device" is parsed purely from the GPU-model
+    # token in the filename -- not which physical host it's plugged into.
+    # Collecting the same device model on two hosts would silently pool
+    # both machines' results together under one "rtx5070ti" column with
+    # no way to tell them apart after the fact (this is exactly what was
+    # happening here before this was disabled: andoria's missing
+    # cuda/scale-nvidia results were being masked by alpha's). If andoria's
+    # rtx5070ti specifically needs to be distinguished from alpha's someday,
+    # that requires host-qualifying the device label (e.g. "rtx5070ti-andoria")
+    # throughout the naming convention, not just here.
+    # run_case "rtx5070ti" BACKEND=cuda COMPILER=nvcc \
+    #   CUDA_DEV_TARGET=sm_120 CUDA_ARCH=120 CUDA_VISIBLE_DEVICES=1
+    # run_case "rtx5070ti" BACKEND=cuda COMPILER=scale-nvidia \
+    #   CUDA_DEV_TARGET=sm_120 CUDA_ARCH=120 CUDA_VISIBLE_DEVICES=1
     ;;
   epsilon)
     # Single AMD device on this host -- no cross-contamination risk since
