@@ -342,6 +342,21 @@ extract_runtime_from_tail <- function(path, n = 20L) {
   extract_runtime(tail_lines)
 }
 
+# Cheap way to count a file's total lines without reading its content into R
+# -- used below to tell fread exactly how many data rows exist, rather than
+# relying on its own footer-detection heuristic.
+count_lines_fast <- function(path) {
+  out <- tryCatch(
+    system2("wc", c("-l", shQuote(path)), stdout = TRUE, stderr = FALSE),
+    error = function(e) character(0)
+  )
+  if (length(out) == 0) {
+    return(NA_integer_)
+  }
+  n <- suppressWarnings(as.integer(str_extract(out[1], "^[0-9]+")))
+  if (is.na(n)) NA_integer_ else n
+}
+
 read_lsb_file_fast <- function(path) {
   meta <- parse_lsb_filename(path)
   if (is.null(meta)) {
@@ -364,26 +379,55 @@ read_lsb_file_fast <- function(path) {
 
   col_names <- str_split(str_squish(header$lines[[header$header_idx]]), "\\s+")[[1]]
 
+  # fread() normally auto-detects and discards a trailing "# Runtime:"
+  # footer line gracefully (the "Discarded single-line footer" message
+  # suppressed below). That auto-detection is a heuristic: it needs enough
+  # consistent-looking data rows to confidently recognize the footer as an
+  # outlier rather than real data. Benchmarks that don't use the
+  # stabilizing repeat-loop (e.g. cwt, which runs its pipeline exactly
+  # once) can have as few as 8 data rows total -- not enough for the
+  # heuristic to work, so fread instead throws a hard "Can't assign N
+  # names to M-column data.table" error on the genuine column-count
+  # mismatch between the 7-field header and the 9-field footer line
+  # ("# Runtime: 0.227708 s (overhead: 0.000000 %) 8 records" splits into
+  # 9 whitespace-separated tokens). Rather than depend on the heuristic at
+  # all, explicitly check whether the file's last line is a footer, and if
+  # so tell fread exactly how many data rows to read via nrows= -- so the
+  # footer is never handed to the parser in the first place, regardless of
+  # file size.
+  nrows_arg <- NA_integer_
+  tail_line <- tryCatch(
+    system2("tail", c("-n", "1", shQuote(path)), stdout = TRUE, stderr = FALSE),
+    error = function(e) character(0)
+  )
+  if (length(tail_line) > 0 && str_detect(tail_line[1], "^# Runtime:")) {
+    total_lines <- count_lines_fast(path)
+    if (!is.na(total_lines)) {
+      nrows_arg <- total_lines - header$header_idx - 1L
+    }
+  }
+
   # suppressWarnings() here is deliberately narrow in intent (even though
-  # syntactically it suppresses all warnings from this call): fread()
-  # legitimately warns "Discarded single-line footer: <<# Runtime: ...>>"
-  # on the large majority of files, confirming it correctly excluded the
-  # trailing runtime line from the parsed table (we extract that value
-  # separately via extract_runtime()/extract_runtime_from_tail() above).
-  # That's expected, not a problem -- but capturing it as a diagnostic
-  # warning (see parse_one() in parse_files_with_progress()) buried any
-  # genuinely informative warnings under thousands of copies of this one.
+  # syntactically it suppresses all warnings from this call): on files
+  # where nrows_arg above wasn't determined (e.g. tail read failed) fread
+  # may still fall back to its own footer-detection and warn about it --
+  # expected, not a problem, and capturing it as a diagnostic warning (see
+  # parse_one() in parse_files_with_progress()) buried genuinely
+  # informative warnings under thousands of copies of this one.
+  fread_args <- list(
+    input = path,
+    skip = header$header_idx,
+    header = FALSE,
+    col.names = col_names,
+    fill = TRUE,
+    showProgress = FALSE
+  )
+  if (!is.na(nrows_arg)) {
+    fread_args$nrows <- max(nrows_arg, 0L)
+  }
+
   dt <- tryCatch(
-    suppressWarnings(
-      data.table::fread(
-        path,
-        skip = header$header_idx,
-        header = FALSE,
-        col.names = col_names,
-        fill = TRUE,
-        showProgress = FALSE
-      )
-    ),
+    suppressWarnings(do.call(data.table::fread, fread_args)),
     error = function(e) {
       warning("fread failed on ", basename(path), ": ", conditionMessage(e))
       NULL
