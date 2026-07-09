@@ -88,7 +88,7 @@ case "$HOST" in
     export OPENCL_LIB_DIR="${OPENCL_LIB_DIR:-$ROCM_PATH/lib}"    ;;
 
   epsilon)
-    # AMD RX 9070 XT/gfx1201 + Vega/gfx900 
+    # AMD RX 9070 XT/gfx1201 + Vega/gfx900
     export BACKENDS="hip"
     export HIP_DEV_TARGET="${HIP_DEV_TARGET:-gfx1201}"
     export MACHINE="AMD RX 9070 XT"
@@ -101,9 +101,16 @@ case "$HOST" in
     export OPENCL_LIB_DIR="${OPENCL_LIB_DIR:-$ROCM_PATH/lib}"    ;;
 
   beta)
-    # AMD Radeon RX 6800 XT gfx1030 + Vega/gfx900 
+    # AMD Radeon RX 6800 XT gfx1030 + Vega/gfx900
+    #
+    # FIX: this previously read HIP_DEV_TARGET="${HIP_DEV_TARGET:-gfx1201}",
+    # a copy-paste artifact from epsilon's block above -- gfx1201 is
+    # epsilon's RX 9070 XT target, not this host's installed RX 6800 XT.
+    # The paper's Table 2 already documents the corrected gfx1030 value
+    # (with a footnote explaining the discrepancy); this was the one place
+    # the script itself still needed to catch up to that correction.
     export BACKENDS="hip"
-    export HIP_DEV_TARGET="${HIP_DEV_TARGET:-gfx1201}"
+    export HIP_DEV_TARGET="${HIP_DEV_TARGET:-gfx1030}"
     export MACHINE="AMD RX 6800 XT"
 
     export ROCM_PATH="${ROCM_PATH:-/opt/rocm-7.1.0}"

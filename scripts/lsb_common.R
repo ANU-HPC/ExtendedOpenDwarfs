@@ -364,14 +364,25 @@ read_lsb_file_fast <- function(path) {
 
   col_names <- str_split(str_squish(header$lines[[header$header_idx]]), "\\s+")[[1]]
 
+  # suppressWarnings() here is deliberately narrow in intent (even though
+  # syntactically it suppresses all warnings from this call): fread()
+  # legitimately warns "Discarded single-line footer: <<# Runtime: ...>>"
+  # on the large majority of files, confirming it correctly excluded the
+  # trailing runtime line from the parsed table (we extract that value
+  # separately via extract_runtime()/extract_runtime_from_tail() above).
+  # That's expected, not a problem -- but capturing it as a diagnostic
+  # warning (see parse_one() in parse_files_with_progress()) buried any
+  # genuinely informative warnings under thousands of copies of this one.
   dt <- tryCatch(
-    data.table::fread(
-      path,
-      skip = header$header_idx,
-      header = FALSE,
-      col.names = col_names,
-      fill = TRUE,
-      showProgress = FALSE
+    suppressWarnings(
+      data.table::fread(
+        path,
+        skip = header$header_idx,
+        header = FALSE,
+        col.names = col_names,
+        fill = TRUE,
+        showProgress = FALSE
+      )
     ),
     error = function(e) {
       warning("fread failed on ", basename(path), ": ", conditionMessage(e))
