@@ -318,17 +318,24 @@ case "${COMPILER:-}" in
     esac
     ;;
   nvcc)
-    if [[ "${APP:-}" == "cfd" ]]; then
-      export NVCCFLAGS="${NVCCFLAGS:-}"
-      case " $NVCCFLAGS " in
-        *" -include string "*) ;;
-        *) export NVCCFLAGS="${NVCCFLAGS:+$NVCCFLAGS }-include string" ;;
-      esac
-      case " $NVCCFLAGS " in
-        *" -include fstream "*) ;;
-        *) export NVCCFLAGS="${NVCCFLAGS:+$NVCCFLAGS }-include fstream" ;;
-      esac
-    fi
+    # Was previously gated on `[[ "${APP:-}" == "cfd" ]]`, but $APP is only
+    # ever the specific app name when the caller drives one app per `make`
+    # invocation (as runner.sh does). scale-validation's 03-test.sh calls
+    # `make run APP=all ...` as a single invocation; odw.py then loops over
+    # every app internally and shells out to `make <app>-cuda-nvcc` per app
+    # without ever re-sourcing this script, so an app-gated check here can
+    # never fire under APP=all regardless of host. Forcing these two
+    # includes ahead of any .cu file's own includes is harmless for the
+    # other apps, so apply unconditionally instead of gating on $APP.
+    export NVCCFLAGS="${NVCCFLAGS:-}"
+    case " $NVCCFLAGS " in
+      *" -include string "*) ;;
+      *) export NVCCFLAGS="${NVCCFLAGS:+$NVCCFLAGS }-include string" ;;
+    esac
+    case " $NVCCFLAGS " in
+      *" -include fstream "*) ;;
+      *) export NVCCFLAGS="${NVCCFLAGS:+$NVCCFLAGS }-include fstream" ;;
+    esac
     ;;
 esac
 
