@@ -268,6 +268,9 @@ int main(int argc, char** argv)
 
 	gettimeofday(&startTime, NULL);
 
+	printf("Processing top-left matrix\n");
+	printf("Processing bottom-right matrix\n");
+
 	do {
 		LSB_Set_Rparam_int("repeats_to_two_seconds", lsb_timing_repeats);
 
@@ -297,8 +300,6 @@ int main(int argc, char** argv)
 
 		const int block_width = (max_cols - 1) / BLOCK_SIZE;
 
-		printf("Processing top-left matrix\n");
-
 		for (int i = 1; i <= block_width; i++) {
 			record_region_start("setting_nw1_kernel_arguments");
 			record_region_end(i);
@@ -320,8 +321,6 @@ int main(int argc, char** argv)
 
 			record_region_end(i);
 		}
-
-		printf("Processing bottom-right matrix\n");
 
 		for (int i = block_width - 1; i >= 1; i--) {
 			record_region_start("setting_nw2_kernel_arguments");

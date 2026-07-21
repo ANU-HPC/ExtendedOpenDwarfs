@@ -263,6 +263,9 @@ void runTest(int argc, char** argv)
 
 	gettimeofday(&startTime, NULL);
 
+	printf("Processing top-left matrix\n");
+	printf("Processing bottom-right matrix\n");
+
 	do {
 		LSB_Set_Rparam_int("repeats_to_two_seconds", lsb_timing_repeats);
 
@@ -308,8 +311,6 @@ void runTest(int argc, char** argv)
 		size_t globalWorkSize[2];
 		int block_width = (max_cols - 1) / BLOCK_SIZE;
 
-		printf("Processing top-left matrix\n");
-
 		for (i = 1; i <= block_width; i++) {
 			globalWorkSize[0] = i * localWorkSize[0];
 			globalWorkSize[1] = 1 * localWorkSize[1];
@@ -348,8 +349,6 @@ void runTest(int argc, char** argv)
 
 			CHKERR(errcode, "Failed to enqueue kernel!");
 		}
-
-		printf("Processing bottom-right matrix\n");
 
 		for (i = block_width - 1; i >= 1; i--) {
 			globalWorkSize[0] = i * localWorkSize[0];
