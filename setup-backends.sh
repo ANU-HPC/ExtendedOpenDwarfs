@@ -287,45 +287,50 @@ if [[ "${BACKENDS}" == *"cuda"* ]]; then
   export CUDA_ARCH="${CUDA_DEV_TARGET#sm_}"
 fi
 
-# Hudson-specific CUDA 12.9 / SCALE workarounds.
+# CUDA 12.9/13.0 / SCALE workarounds for hosts with newer host compilers
+# (GCC 13+) than NVIDIA officially supports for this CUDA version. This
+# is a compiler/CUDA-version interaction, not something tied to any one
+# site or machine -- originally added for hudson (ORNL/ExCL), but trill
+# and alpha (Spectral Compute) hit the identical cfd/nvcc STL-include-order
+# failure (basic_string.h __noinline__ error) despite being on different
+# hardware, sites, and Ubuntu versions. Applied unconditionally rather
+# than gated by hostname.
 # Keep these compiler-specific: SCALE needs libstdc++ paths; plain NVCC
 # only needs the CFD include-order workaround.
-if [[ "$HOST" == "hudson" ]]; then
-  case "${COMPILER:-}" in
-    scale-nvidia|scale-amd)
-      if [[ -n "${SCALE_CPLUS_INCLUDE_PATH:-}" ]]; then
-        export CPLUS_INCLUDE_PATH="$SCALE_CPLUS_INCLUDE_PATH"
-      fi
-      if [[ -n "${SCALE_LIBRARY_PATH:-}" ]]; then
-        export LIBRARY_PATH="$SCALE_LIBRARY_PATH"
-      fi
-      if [[ -n "${SCALE_LD_LIBRARY_PATH:-}" ]]; then
-        export LD_LIBRARY_PATH="$SCALE_LD_LIBRARY_PATH${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-      fi
+case "${COMPILER:-}" in
+  scale-nvidia|scale-amd)
+    if [[ -n "${SCALE_CPLUS_INCLUDE_PATH:-}" ]]; then
+      export CPLUS_INCLUDE_PATH="$SCALE_CPLUS_INCLUDE_PATH"
+    fi
+    if [[ -n "${SCALE_LIBRARY_PATH:-}" ]]; then
+      export LIBRARY_PATH="$SCALE_LIBRARY_PATH"
+    fi
+    if [[ -n "${SCALE_LD_LIBRARY_PATH:-}" ]]; then
+      export LD_LIBRARY_PATH="$SCALE_LD_LIBRARY_PATH${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    fi
 
+    export NVCCFLAGS="${NVCCFLAGS:-}"
+    case " $NVCCFLAGS " in
+      *" -include include/odw_cuda_compat.h "*) ;;
+      *)
+        export NVCCFLAGS="${NVCCFLAGS:+$NVCCFLAGS }-include ${SCRIPT_DIR}/include/odw_cuda_compat.h"
+        ;;
+    esac
+    ;;
+  nvcc)
+    if [[ "${APP:-}" == "cfd" ]]; then
       export NVCCFLAGS="${NVCCFLAGS:-}"
       case " $NVCCFLAGS " in
-        *" -include include/odw_cuda_compat.h "*) ;;
-        *)
-          export NVCCFLAGS="${NVCCFLAGS:+$NVCCFLAGS }-include ${SCRIPT_DIR}/include/odw_cuda_compat.h"
-          ;;
+        *" -include string "*) ;;
+        *) export NVCCFLAGS="${NVCCFLAGS:+$NVCCFLAGS }-include string" ;;
       esac
-      ;;
-    nvcc)
-      if [[ "${APP:-}" == "cfd" ]]; then
-        export NVCCFLAGS="${NVCCFLAGS:-}"
-        case " $NVCCFLAGS " in
-          *" -include string "*) ;;
-          *) export NVCCFLAGS="${NVCCFLAGS:+$NVCCFLAGS }-include string" ;;
-        esac
-        case " $NVCCFLAGS " in
-          *" -include fstream "*) ;;
-          *) export NVCCFLAGS="${NVCCFLAGS:+$NVCCFLAGS }-include fstream" ;;
-        esac
-      fi
-      ;;
-  esac
-fi
+      case " $NVCCFLAGS " in
+        *" -include fstream "*) ;;
+        *) export NVCCFLAGS="${NVCCFLAGS:+$NVCCFLAGS }-include fstream" ;;
+      esac
+    fi
+    ;;
+esac
 
 if [[ "${BACKENDS}" == *"hip"* ]]; then
   export HIP_ARCH="${HIP_ARCH:-$HIP_DEV_TARGET}"
