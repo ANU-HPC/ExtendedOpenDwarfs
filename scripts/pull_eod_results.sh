@@ -8,6 +8,7 @@ HOSTS=(
   epsilon
   beta
   andoria
+  risa
 )
 
 mkdir -p "$LOCAL_BASE"

@@ -313,9 +313,18 @@ def run_binary(app_dir, app, backend, compiler, final_args, lsb_name):
 
 
 
+# Full application list for APP=all sweeps. Names match the Python
+# variable names defined in opendwarf_application_parameters.py (not the
+# APP_PATHS dict keys), matching runner.sh's APP_LIST ordering.
+ALL_APPS = [
+    "nqueens", "crc", "lud", "nw", "swat", "tdm", "hmm", "bfs",
+    "kmeans", "gem", "csr", "srad", "cfd", "dwt", "fft", "cwt",
+]
+
+
 def selected_apps(app_arg):
     if app_arg is None or app_arg == "" or app_arg == "all":
-        return ["nqueens"]
+        return list(ALL_APPS)
     return [app_arg]
 
 
