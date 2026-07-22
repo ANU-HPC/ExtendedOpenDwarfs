@@ -419,7 +419,6 @@ int main(int argc, char* argv[])
 		CHKERR(errcode, "Failed to enqueue read buffer!");
 
 		stopwatch_stop(&sw);
-		printf("Time consumed(ms): %lf\n", 1000 * get_interval_by_sec(&sw));
 
 		lsb_timing_repeats++;
 		gettimeofday(&currentTime, NULL);

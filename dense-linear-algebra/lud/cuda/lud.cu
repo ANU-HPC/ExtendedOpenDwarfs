@@ -363,8 +363,6 @@ int main(int argc, char** argv)
 
 		gettimeofday(&kernel_end, NULL);
 		timersub(&kernel_end, &kernel_start, &elapsedTime);
-		printf("Time consumed(ms): %lf\n",
-			1000.0 * elapsedTime.tv_sec + elapsedTime.tv_usec / 1000.0);
 
 		record_region_start("device_side_d2h_copy");
 
