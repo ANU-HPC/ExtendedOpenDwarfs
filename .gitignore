@@ -10,3 +10,5 @@ external
 results
 scale-*-Linux
 pixi.lock
+.RData
+.Rhistory
