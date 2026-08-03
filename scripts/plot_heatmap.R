@@ -300,10 +300,7 @@ run_for_metric <- function(metric, df, base_out_dir, frac_with_runtime) {
   # without requiring the reader to mentally exponentiate log2 values.
   # -------------------------------------------------------------------------
 
-  max_abs_log2 <- max(abs(heatmap_df$log2_ratio), na.rm = TRUE)
-  # Symmetric limits so 1.0x always sits at the exact midpoint of the scale,
-  # regardless of whether the data skews toward SCALE-faster or SCALE-slower.
-  colour_limit <- max(max_abs_log2, 0.1)
+  colour_limit <- 2  # log2(2) = ±4x
 
   dup_check <- heatmap_df |>
     count(benchmark, size, device) |>
@@ -327,24 +324,29 @@ run_for_metric <- function(metric, df, base_out_dir, frac_with_runtime) {
     ) +
       geom_tile(colour = "white", linewidth = 0.4) +
       geom_text(
-        aes(label = paste0(number(ratio, accuracy = 0.01), "x")),
-        size = 3,
+        aes(label = number(ratio, accuracy = 0.1)),  # was: paste0(number(ratio, accuracy = 0.01), "x")
+        size = 5.75,                                  # was: 3
         colour = "black"
       ) +
       facet_wrap(~size, nrow = 1, labeller = labeller(size = str_to_title)) +
       scale_fill_gradient2(
-        low = "#1F77B4",
+        low = "#0173B2",   # seaborn colorblind "blue" — SCALE faster
         mid = "white",
-        high = "#D62728",
+        high = "#DE8F05",  # seaborn colorblind "orange" — SCALE slower
         midpoint = 0,
         limits = c(-colour_limit, colour_limit),
+        oob = scales::squish,   # clip out-of-range cells to full colour instead of NA/stretching
         breaks = c(-colour_limit, 0, colour_limit),
         labels = c("SCALE faster", "parity", "SCALE slower"),
         name = NULL
       ) +
       theme_bw(base_size = 13) +
       theme(
-        axis.text.x = element_text(angle = 40, hjust = 1),
+        axis.text.x = element_text(angle = 40, hjust = 1, size = 22),
+        axis.text.y = element_text(size = 22),
+        plot.title = element_text(size = 32),
+        plot.subtitle = element_text(size = 28),
+        legend.text = element_text(size = 26),
         panel.grid = element_blank(),
         legend.position = "bottom",
         legend.key.width = unit(2.2, "cm")
@@ -385,11 +387,15 @@ run_for_metric <- function(metric, df, base_out_dir, frac_with_runtime) {
 
     out_path <- file.path(out_dir, paste0("scale_vs_native_heatmap_", arch, "_", metric, ".pdf"))
 
+    TARGET_ASPECT <- 1.83  # matches AMD's current (good) density; NVIDIA's height derives from it instead of its own formula
+    plot_width <- max(6, 2.4 * n_devices + 2)
+    plot_height <- plot_width / TARGET_ASPECT
+
     ggsave(
       out_path,
       p,
-      width = max(6, 2.4 * n_devices + 2),
-      height = max(3, 0.55 * n_benchmarks + 2),
+      width = plot_width,
+      height = plot_height,
       limitsize = FALSE
     )
 
