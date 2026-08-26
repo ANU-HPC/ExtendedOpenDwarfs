@@ -12,3 +12,6 @@ scale-*-Linux
 pixi.lock
 .RData
 .Rhistory
+kernelTime.txt
+results.zip
+runtime.txt
