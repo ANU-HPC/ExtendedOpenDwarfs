@@ -70,6 +70,19 @@ case "$HOST" in
     export OPENCL_INC_DIR="${OPENCL_INC_DIR:-$ROCM_PATH/include}"
     export OPENCL_LIB_DIR="${OPENCL_LIB_DIR:-$ROCM_PATH/lib}"    ;;
 
+  benzar)
+    # NVIDIA Blackwell + AMD RDNA3
+    export BACKENDS="hip,opencl"
+    export HIP_DEV_TARGET="${HIP_DEV_TARGET:-gfx1201}"
+    export MACHINE="RDNA4"
+
+    export ROCM_PATH="${ROCM_PATH:-/opt/rocm-7.2.3}"
+    export HIP_PATH="${HIP_PATH:-$ROCM_PATH}"
+
+    # Prefer ROCm OpenCL on mixed AMD/NVIDIA hosts unless overridden.
+    export OPENCL_INC_DIR="${OPENCL_INC_DIR:-$ROCM_PATH/include}"
+    export OPENCL_LIB_DIR="${OPENCL_LIB_DIR:-$ROCM_PATH/lib}"    ;;
+
   alpha)
     # NVIDIA Blackwell + AMD RDNA3
     export BACKENDS="cuda,hip,opencl"
