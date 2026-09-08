@@ -47,6 +47,20 @@ BACKEND="${BACKEND:-all}"
 COMPILER="${COMPILER:-all}"
 SIZE="${SIZE:-all}"
 ITERS="${ITERS:-5}"
+# SCALE_ONLY=1 (set by run-regression-fleet.sh, in turn forced on by
+# compare-scale-versions.sh for a version-diff run) skips every native
+# (nvcc/hipcc) case below, running only scale-nvidia/scale-amd. This
+# matters for more than just saved time: this script runs under `set -e`,
+# so a native-toolchain build failure (e.g. benzar's gfx1201 hipcc/
+# __AMDGCN_WAVEFRONT_SIZE issue) aborts the ENTIRE script immediately,
+# before any later run_case call for that host ever runs -- including the
+# scale-amd case a version-diff run actually needs. A bug in a native
+# compiler nobody asked about in that mode should never be able to block
+# SCALE-only regression data collection. See plot-scale-version-diff.R,
+# which only ever diffs cuda/scale-nvidia and cuda/scale-amd runtimes
+# between two SCALE versions and explicitly excludes native toolchains --
+# native results are simply out of scope for that comparison.
+SCALE_ONLY="${SCALE_ONLY:-0}"
 if [[ -z "${SCALE_ROOT:-}" ]]; then
   echo "error: SCALE_ROOT is not set. Expected run-regression-fleet.sh's build_sweep_command to have already exported it (via ensure-scale.sh or a distributed local build) before invoking this script." >&2
   exit 1
@@ -54,6 +68,20 @@ fi
 run_case() {
   local label="$1"
   shift
+  if [[ "$SCALE_ONLY" == "1" ]]; then
+    local arg compiler=""
+    for arg in "$@"; do
+      case "$arg" in
+        COMPILER=*) compiler="${arg#COMPILER=}" ;;
+      esac
+    done
+    case "$compiler" in
+      nvcc|hipcc)
+        echo "Skipping host=$HOST device=$label compiler=$compiler (native) -- SCALE_ONLY=1"
+        return 0
+        ;;
+    esac
+  fi
   echo
   echo "============================================================"
   echo "Regression run: host=$HOST device=$label"
