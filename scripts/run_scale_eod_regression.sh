@@ -6,17 +6,32 @@ set -euo pipefail
 # This is a sibling of run_scale_eod_paper.sh, not a replacement for it --
 # run_scale_eod_paper.sh stays exactly as-is for reproducing the paper's
 # original fixed-host results. This script targets the CURRENT regression
-# fleet inventory (rescanned 2026-08-27), which has diverged from what
-# run_scale_eod_paper.sh assumes in two ways worth calling out:
+# fleet inventory (last updated 2026-09-08), which has diverged from what
+# run_scale_eod_paper.sh assumes in ways worth calling out:
 #   - "alpha" no longer exists under that name/hardware. It was NOT simply
 #     renamed to "benzar" -- benzar's actual GPUs (2x RX 9070 XT + 1x
 #     MI210) don't match what run_scale_eod_paper.sh's alpha) case
 #     describes (RTX 5070 Ti + RX 7900 XTX) at all. Treat benzar as a new
 #     host, not alpha's successor.
-#   - epsilon and beta have each gained a second GPU (a Vega 56/64 on
-#     each) that run_scale_eod_paper.sh's epsilon)/beta) cases don't know
-#     about at all -- those cases' "single device, no cross-contamination
-#     risk" comments are no longer accurate for the current hardware.
+#   - "Jon's cluster" -- alpha, beta, delta, epsilon, gamma, sparta -- is
+#     PERMANENTLY DECOMMISSIONED (Jon left the company; the whole
+#     home-managed cluster was torn down, confirmed directly by
+#     infrastructure admin on 2026-09-08). This is NOT the same as the
+#     "beta/epsilon unreachable" network investigation from earlier in the
+#     regression-gaps history -- that routing fault turned out to be a
+#     symptom of these boxes already being gone, not a fixable network bug.
+#     beta/delta/epsilon/gamma's case blocks have been removed below
+#     entirely, not left in as unreachable/best-effort.
+#   - Some of Jon's decommissioned GPUs are being redistributed into other
+#     hosts (admin mentioned "sytronix" as an eventual destination for some
+#     of them, not yet confirmed/relevant here) -- confirmed already
+#     happened for andoria specifically, which now physically has a gfx900
+#     and a gfx1030 card in addition to its original two NVIDIA cards. NOT
+#     YET ADDED to andoria's case below -- need a fresh rocm-smi scan on
+#     andoria to get real device indices (and confirm exact SKU: beta's
+#     gfx1030 was an RX 6800 XT, delta's was a plain RX 6800 -- a distinct
+#     SKU, not interchangeable for labelling purposes) before guessing at
+#     ROCR_VISIBLE_DEVICES here.
 #
 # Unlike run_scale_eod_paper.sh, this script does NOT try to avoid
 # collecting the same GPU model from two different hosts (that script's
@@ -115,6 +130,16 @@ case "$HOST" in
     # run_case "w7800"   BACKEND=opencl COMPILER=opencl OPENCL_ARGS="-p <amd_platform> -d <amd_device> -t 1 --"
     ;;
   andoria)
+    # EXCLUDED from EOD_REGRESSION_REMOTE_TARGETS as of 2026-09-09 -- this
+    # case is currently dormant (unreached, since run-regression-fleet.sh
+    # no longer dispatches here). Host is refusing SSH (`Connection
+    # refused`) after new GPUs (a gfx900 + a gfx1030, from Jon's
+    # decommissioned cluster) were physically installed -- likely just
+    # still mid-reboot, but not yet confirmed. Do not re-enable in
+    # run-regression-fleet.sh until Beau has physically checked the
+    # machine and its full GPU inventory has been reassessed; the two
+    # cases below reflect its LAST CONFIRMED state, not necessarily its
+    # current one.
     # RTX 4070 Ti (sm_89) + RTX 5070 Ti (sm_120/compute 12.0). Both
     # collected -- unlike run_scale_eod_paper.sh's andoria) case, there is
     # no other host with an RTX 5070 Ti in the current regression fleet
@@ -128,6 +153,15 @@ case "$HOST" in
       CUDA_DEV_TARGET=sm_120 CUDA_ARCH=120 CUDA_VISIBLE_DEVICES=1
     run_case "rtx5070ti" BACKEND=cuda COMPILER=scale-nvidia \
       CUDA_DEV_TARGET=sm_120 CUDA_ARCH=120 CUDA_VISIBLE_DEVICES=1
+    # TODO: andoria has ALSO physically gained a gfx900 (Vega 56/64) and a
+    # gfx1030 (RX 6800 or 6800 XT -- SKU not yet confirmed) card, migrated
+    # from Jon's decommissioned cluster (beta/delta both had a gfx1030;
+    # beta/epsilon both had a gfx900 -- source card not identified). Not
+    # added here yet: need a real `rocm-smi --showproductname` (or
+    # equivalent) scan on andoria to get actual ROCR_VISIBLE_DEVICES
+    # indices and confirm the exact SKU before writing run_case calls for
+    # these, same as every other host's device comments below were sourced
+    # from a real scan rather than guessed.
     # TODO: OpenCL platform/device-index verification, as above.
     ;;
   benzar)
@@ -142,58 +176,6 @@ case "$HOST" in
       HIP_DEV_TARGET=gfx90a HIP_ARCH=gfx90a ROCR_VISIBLE_DEVICES=2
     run_case "mi210" BACKEND=cuda COMPILER=scale-amd \
       HIP_DEV_TARGET=gfx90a HIP_ARCH=gfx90a ROCR_VISIBLE_DEVICES=2
-    # TODO: OpenCL platform/device-index verification, as above.
-    ;;
-  beta)
-    # RX 6800 XT (gfx1030, GPU[0]) + Vega 56/64 (gfx900, GPU[1] -- newly
-    # added here; run_scale_eod_paper.sh's beta) case predates this card).
-    run_case "rx6800xt" BACKEND=hip COMPILER=hipcc \
-      HIP_DEV_TARGET=gfx1030 HIP_ARCH=gfx1030 ROCR_VISIBLE_DEVICES=0
-    run_case "rx6800xt" BACKEND=cuda COMPILER=scale-amd \
-      HIP_DEV_TARGET=gfx1030 HIP_ARCH=gfx1030 ROCR_VISIBLE_DEVICES=0
-    run_case "vega" BACKEND=hip COMPILER=hipcc \
-      HIP_DEV_TARGET=gfx900 HIP_ARCH=gfx900 ROCR_VISIBLE_DEVICES=1
-    run_case "vega" BACKEND=cuda COMPILER=scale-amd \
-      HIP_DEV_TARGET=gfx900 HIP_ARCH=gfx900 ROCR_VISIBLE_DEVICES=1
-    # TODO: OpenCL platform/device-index verification, as above.
-    ;;
-  delta)
-    # New host. Single RX 6800 (gfx1030, GPU[0]) -- note this is "rx6800",
-    # not "rx6800xt": same generation as beta's card but a distinct SKU,
-    # so it's kept as its own device label rather than pooled with beta's.
-    run_case "rx6800" BACKEND=hip COMPILER=hipcc \
-      HIP_DEV_TARGET=gfx1030 HIP_ARCH=gfx1030 ROCR_VISIBLE_DEVICES=0
-    run_case "rx6800" BACKEND=cuda COMPILER=scale-amd \
-      HIP_DEV_TARGET=gfx1030 HIP_ARCH=gfx1030 ROCR_VISIBLE_DEVICES=0
-    # TODO: OpenCL platform/device-index verification, as above.
-    ;;
-  epsilon)
-    # Vega 56/64 (gfx900, GPU[0] -- newly added here, same caveat as
-    # beta's) + RX 9070 XT (gfx1201, GPU[1] -- this one already existed in
-    # run_scale_eod_paper.sh's epsilon) case at the same index).
-    run_case "vega" BACKEND=hip COMPILER=hipcc \
-      HIP_DEV_TARGET=gfx900 HIP_ARCH=gfx900 ROCR_VISIBLE_DEVICES=0
-    run_case "vega" BACKEND=cuda COMPILER=scale-amd \
-      HIP_DEV_TARGET=gfx900 HIP_ARCH=gfx900 ROCR_VISIBLE_DEVICES=0
-    run_case "rx9070xt" BACKEND=hip COMPILER=hipcc \
-      HIP_DEV_TARGET=gfx1201 HIP_ARCH=gfx1201 ROCR_VISIBLE_DEVICES=1
-    run_case "rx9070xt" BACKEND=cuda COMPILER=scale-amd \
-      HIP_DEV_TARGET=gfx1201 HIP_ARCH=gfx1201 ROCR_VISIBLE_DEVICES=1
-    # TODO: OpenCL platform/device-index verification, as above.
-    ;;
-  gamma)
-    # New host. RX 9070 XT (gfx1201, GPU[0]) + Radeon VII (gfx906,
-    # GPU[1]) -- labelled "radeonvii", deliberately distinct from any
-    # Instinct MI60 elsewhere: same die (gfx906) but a different, consumer
-    # SKU, so it's not pooled with an MI60's numbers.
-    run_case "rx9070xt" BACKEND=hip COMPILER=hipcc \
-      HIP_DEV_TARGET=gfx1201 HIP_ARCH=gfx1201 ROCR_VISIBLE_DEVICES=0
-    run_case "rx9070xt" BACKEND=cuda COMPILER=scale-amd \
-      HIP_DEV_TARGET=gfx1201 HIP_ARCH=gfx1201 ROCR_VISIBLE_DEVICES=0
-    run_case "radeonvii" BACKEND=hip COMPILER=hipcc \
-      HIP_DEV_TARGET=gfx906 HIP_ARCH=gfx906 ROCR_VISIBLE_DEVICES=1
-    run_case "radeonvii" BACKEND=cuda COMPILER=scale-amd \
-      HIP_DEV_TARGET=gfx906 HIP_ARCH=gfx906 ROCR_VISIBLE_DEVICES=1
     # TODO: OpenCL platform/device-index verification, as above.
     ;;
   risa)
