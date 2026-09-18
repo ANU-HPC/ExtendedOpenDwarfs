@@ -298,6 +298,8 @@ def run_binary(app_dir, app, backend, compiler, final_args, lsb_name):
         env_cmd += " " + final_args
 
     if backend == "cuda" and compiler.startswith("scale-"):
+        if "SCALE_ROOT" not in os.environ:
+            raise SystemExit("Must set SCALE_ROOT")
         scale_root = os.environ.get("SCALE_ROOT", str(REPO_ROOT / "scale-1.7.1-Linux"))
 
         if compiler == "scale-amd":
