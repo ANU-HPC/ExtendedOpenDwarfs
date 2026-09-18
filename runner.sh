@@ -233,7 +233,7 @@ for app in "${APP_LIST[@]}"; do
   done
 done
 echo
-echo "Done. Results should be in ./results/"
+echo "Done. Results should be in $SCRIPT_DIR/results/"
 if [[ "$RUNNER_FAILED_ITERATIONS" -gt 0 ]]; then
   echo "WARNING: ${RUNNER_FAILED_ITERATIONS} iteration(s) failed (even after retry) and were skipped during this sweep -- see WARNING lines above for which app/size/backend/compiler configs were affected." >&2
 fi
