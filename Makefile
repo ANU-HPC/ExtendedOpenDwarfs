@@ -8,6 +8,9 @@ COMPILER ?= nvcc
 SIZE ?= tiny
 ITERS ?= 1
 
+export BACKENDS=$(BACKEND)
+export COMPILER=$(COMPILER)
+
 .PHONY: all build run clean ensure-liblsb install-liblsb clean-liblsb
 
 all: build

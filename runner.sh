@@ -242,23 +242,6 @@ compiler_enabled() {
 host_supports_backend() {
   local backend="$1"
   . ./setup-backends.sh >/dev/null
-  case "$backend" in
-    opencl)
-      [[ "${BACKENDS:-}" == *"opencl"* ]]
-      ;;
-    cuda)
-      [[ "${BACKENDS:-}" == *"cuda"* ]]
-      ;;
-    hip)
-      [[ "${BACKENDS:-}" == *"hip"* ]]
-      ;;
-    scale-amd)
-      [[ -n "${HIP_DEV_TARGET:-}" ]]
-      ;;
-    *)
-      return 1
-      ;;
-  esac
 }
 run_size() {
   local size="$1"
@@ -266,6 +249,7 @@ run_size() {
   echo "============================================================"
   echo "SIZE=$size"
   echo "============================================================"
+  export BACKENDS="$BACKEND"
   if [[ "$BACKEND" == "all" || "$BACKEND" == "opencl" ]]; then
     if compiler_enabled opencl; then
       if host_supports_backend opencl; then

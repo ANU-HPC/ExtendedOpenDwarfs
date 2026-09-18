@@ -1,34 +1,30 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%x}}")" && pwd)"
-HOST="$(hostname -s)"
-export HOST
-export MACHINE="${MACHINE:-$HOST}"
-export EXCL_HOST="$HOST"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:?}")" && pwd)"
 
-echo "Setting up CUDA/HIP/OpenCL backends for $HOST"
+echo "Setting up CUDA/HIP/OpenCL backends"
 
 append_ld_library_path() {
-  local dir="$1"
-  [ -n "$dir" ] || return 0
-  [ -d "$dir" ] || return 0
+       local dir="$1"
+       [ -n "$dir" ] || return 0
+       [ -d "$dir" ] || return 0
 
-  case ":${LD_LIBRARY_PATH:-}:" in
-    *":$dir:"*) ;;
-    *) export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}$dir" ;;
-  esac
+       case ":${LD_LIBRARY_PATH:-}:" in
+       *":$dir:"*) ;;
+       *) export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}$dir" ;;
+       esac
 }
 
 prepend_path() {
-  local dir="$1"
-  [ -n "$dir" ] || return 0
-  [ -d "$dir" ] || return 0
+       local dir="$1"
+       [ -n "$dir" ] || return 0
+       [ -d "$dir" ] || return 0
 
-  case ":${PATH:-}:" in
-    *":$dir:"*) ;;
-    *) export PATH="$dir${PATH:+:$PATH}" ;;
-  esac
+       case ":${PATH:-}:" in
+       *":$dir:"*) ;;
+       *) export PATH="$dir${PATH:+:$PATH}" ;;
+       esac
 }
 
 # Keep these clean. Do not inherit generated compiler/linker/include flags.
@@ -44,260 +40,70 @@ unset LIBRARY_PATH
 # Some systems export CC=nvc/CXX=nvc++, which produces host objects that
 # require NVHPC runtime libraries when linked by nvcc. Default to GCC unless
 # explicitly overridden for this workflow.
+# TODO: Don't we want to use the matching host compiler when we can?
 export CC="${ODW_HOST_CC:-/usr/bin/gcc}"
 export CXX="${ODW_HOST_CXX:-/usr/bin/g++}"
 
-export BACKENDS="${BACKENDS:-}"
-export CUDA_DEV_TARGET="${CUDA_DEV_TARGET:-}"
-export HIP_DEV_TARGET="${HIP_DEV_TARGET:-}"
-export SCALE_ROOT="${SCALE_ROOT:-$(dirname "$SCRIPT_DIR")/scale-1.7.1-Linux}"
-
-case "$HOST" in
-  trill)
-    # NVIDIA Blackwell + AMD RDNA3
-    export BACKENDS="cuda,hip,opencl"
-    export CUDA_DEV_TARGET="${CUDA_DEV_TARGET:-sm_120}"
-    export HIP_DEV_TARGET="${HIP_DEV_TARGET:-gfx1100}"
-    export MACHINE="Blackwell+RDNA3"
-
-    export NVHPC_ROOT="${NVHPC_ROOT:-/usr/local}"
-    export CUDA_PATH="${CUDA_PATH:-$NVHPC_ROOT/cuda-13.0}"
-
-    export ROCM_PATH="${ROCM_PATH:-/opt/rocm-7.1.0}"
-    export HIP_PATH="${HIP_PATH:-$ROCM_PATH}"
-
-    # Prefer ROCm OpenCL on mixed AMD/NVIDIA hosts unless overridden.
-    export OPENCL_INC_DIR="${OPENCL_INC_DIR:-$ROCM_PATH/include}"
-    export OPENCL_LIB_DIR="${OPENCL_LIB_DIR:-$ROCM_PATH/lib}"    ;;
-
-  benzar)
-    # NVIDIA Blackwell + AMD RDNA3
-    export BACKENDS="hip,opencl"
-    export HIP_DEV_TARGET="${HIP_DEV_TARGET:-gfx1201}"
-    export MACHINE="RDNA4"
-
-    export ROCM_PATH="${ROCM_PATH:-/opt/rocm-7.2.3}"
-    export HIP_PATH="${HIP_PATH:-$ROCM_PATH}"
-
-    # Prefer ROCm OpenCL on mixed AMD/NVIDIA hosts unless overridden.
-    export OPENCL_INC_DIR="${OPENCL_INC_DIR:-$ROCM_PATH/include}"
-    export OPENCL_LIB_DIR="${OPENCL_LIB_DIR:-$ROCM_PATH/lib}"    ;;
-
-  alpha)
-    # NVIDIA Blackwell + AMD RDNA3
-    export BACKENDS="cuda,hip,opencl"
-    export CUDA_DEV_TARGET="${CUDA_DEV_TARGET:-sm_120}"
-    export HIP_DEV_TARGET="${HIP_DEV_TARGET:-gfx1100}"
-    export MACHINE="Blackwell+RDNA3"
-
-    export NVHPC_ROOT="${NVHPC_ROOT:-/usr/local}"
-    export CUDA_PATH="${CUDA_PATH:-$NVHPC_ROOT/cuda-13.0}"
-
-    export ROCM_PATH="${ROCM_PATH:-/opt/rocm-7.1.0}"
-    export HIP_PATH="${HIP_PATH:-$ROCM_PATH}"
-
-    # Prefer ROCm OpenCL on mixed AMD/NVIDIA hosts unless overridden.
-    export OPENCL_INC_DIR="${OPENCL_INC_DIR:-$ROCM_PATH/include}"
-    export OPENCL_LIB_DIR="${OPENCL_LIB_DIR:-$ROCM_PATH/lib}"    ;;
-
-  epsilon)
-    # AMD RX 9070 XT/gfx1201 + Vega/gfx900
-    export BACKENDS="hip"
-    export HIP_DEV_TARGET="${HIP_DEV_TARGET:-gfx1201}"
-    export MACHINE="AMD RX 9070 XT"
-
-    export ROCM_PATH="${ROCM_PATH:-/opt/rocm-7.1.0}"
-    export HIP_PATH="${HIP_PATH:-$ROCM_PATH}"
-
-    # Prefer ROCm OpenCL on mixed AMD/NVIDIA hosts unless overridden.
-    export OPENCL_INC_DIR="${OPENCL_INC_DIR:-$ROCM_PATH/include}"
-    export OPENCL_LIB_DIR="${OPENCL_LIB_DIR:-$ROCM_PATH/lib}"    ;;
-
-  beta)
-    # AMD Radeon RX 6800 XT gfx1030 + Vega/gfx900
-    #
-    # FIX: this previously read HIP_DEV_TARGET="${HIP_DEV_TARGET:-gfx1201}",
-    # a copy-paste artifact from epsilon's block above -- gfx1201 is
-    # epsilon's RX 9070 XT target, not this host's installed RX 6800 XT.
-    # The paper's Table 2 already documents the corrected gfx1030 value
-    # (with a footnote explaining the discrepancy); this was the one place
-    # the script itself still needed to catch up to that correction.
-    export BACKENDS="hip"
-    export HIP_DEV_TARGET="${HIP_DEV_TARGET:-gfx1030}"
-    export MACHINE="AMD RX 6800 XT"
-
-    export ROCM_PATH="${ROCM_PATH:-/opt/rocm-7.1.0}"
-    export HIP_PATH="${HIP_PATH:-$ROCM_PATH}"
-
-    # Prefer ROCm OpenCL on mixed AMD/NVIDIA hosts unless overridden.
-    export OPENCL_INC_DIR="${OPENCL_INC_DIR:-$ROCM_PATH/include}"
-    export OPENCL_LIB_DIR="${OPENCL_LIB_DIR:-$ROCM_PATH/lib}"    ;;
-
-  andoria)
-    # RTX 4070 Ti + RTX 5070 Ti
-    export BACKENDS="cuda,opencl"
-    export CUDA_DEV_TARGET="${CUDA_DEV_TARGET:-sm_89}"
-    export MACHINE="RTX 4070 Ti"
-
-    export NVHPC_ROOT="${NVHPC_ROOT:-/usr/local}"
-    export CUDA_PATH="${CUDA_PATH:-$NVHPC_ROOT/cuda-13.0}"
-
-    # Prefer ROCm OpenCL on mixed AMD/NVIDIA hosts unless overridden.
-    export OPENCL_INC_DIR="${OPENCL_INC_DIR:-$CUDA_PATH/include}"
-    export OPENCL_LIB_DIR="${OPENCL_LIB_DIR:-$CUDA_PATH/lib}"    ;;
-
-  milan2)
-    # Tesla V100-PCIE-32GB
-    export BACKENDS="cuda,opencl"
-    export CUDA_DEV_TARGET="${CUDA_DEV_TARGET:-sm_70}"
-    export MACHINE="${MACHINE:-V100}"
-
-    export NVHPC_ROOT="${NVHPC_ROOT:-/opt/nvidia/hpc_sdk/Linux_x86_64/25.5}"
-    export CUDA_PATH="${CUDA_PATH:-$NVHPC_ROOT/cuda/12.9}"
-
-    export OPENCL_INC_DIR="${OPENCL_INC_DIR:-$CUDA_PATH/include}"
-    export OPENCL_LIB_DIR="${OPENCL_LIB_DIR:-$CUDA_PATH/lib64}"
-    ;;
-
-  milan0)
-    # NVIDIA A100
-    export BACKENDS="cuda"
-    export CUDA_DEV_TARGET="${CUDA_DEV_TARGET:-sm_80}"
-    export MACHINE="${MACHINE:-A100}"
-
-    export NVHPC_ROOT="${NVHPC_ROOT:-/opt/nvidia/hpc_sdk/Linux_x86_64/26.5}"
-    export CUDA_PATH="${CUDA_PATH:-$NVHPC_ROOT/cuda/12.9}"
-
-    export OPENCL_INC_DIR="${OPENCL_INC_DIR:-$CUDA_PATH/include}"
-    export OPENCL_LIB_DIR="${OPENCL_LIB_DIR:-$CUDA_PATH/lib64}"
-    ;;
-
-  hudson)
-    # NVIDIA H100
-    export BACKENDS="cuda"
-    export CUDA_DEV_TARGET="sm_90"
-    export CUDA_ARCH="90"
-    export MACHINE="${MACHINE:-H100}"
-
-    # SCALE's Clang incorrectly selects GCC 14 on Hudson, whose C++
-    # include path is incomplete. Keep this workaround SCALE-only so it
-    # does not poison plain NVCC builds.
-    if [[ -d /usr/include/c++/13 ]]; then
-      export SCALE_CPLUS_INCLUDE_PATH="/usr/include/c++/13:/usr/include/x86_64-linux-gnu/c++/13:/usr/include/c++/13/backward"
-      export SCALE_LIBRARY_PATH="/usr/lib/gcc/x86_64-linux-gnu/13:/usr/lib/x86_64-linux-gnu"
-      export SCALE_LD_LIBRARY_PATH="/usr/lib/gcc/x86_64-linux-gnu/13:/usr/lib/x86_64-linux-gnu"
-    fi
-
-    export NVHPC_ROOT="${NVHPC_ROOT:-/opt/nvidia/hpc_sdk/Linux_x86_64/2026}"
-    export CUDA_PATH="${CUDA_PATH:-$NVHPC_ROOT/cuda}"
-
-    export OPENCL_INC_DIR="${OPENCL_INC_DIR:-$CUDA_PATH/include}"
-    export OPENCL_LIB_DIR="${OPENCL_LIB_DIR:-$CUDA_PATH/lib64}"
-    ;;
-
-  faraday)
-    # AMD MI300A
-    export BACKENDS="hip"
-    export HIP_DEV_TARGET="${HIP_DEV_TARGET:-gfx942}"
-    export MACHINE="${MACHINE:-MI300A}"
-
-    export ROCM_PATH="${ROCM_PATH:-/opt/rocm}"
-    export HIP_PATH="${HIP_PATH:-$ROCM_PATH}"
-
-    export OPENCL_INC_DIR="${OPENCL_INC_DIR:-$ROCM_PATH/include}"
-    export OPENCL_LIB_DIR="${OPENCL_LIB_DIR:-$ROCM_PATH/lib}"
-    ;;
-
-  cousteau)
-    # AMD MI100
-    export BACKENDS="hip"
-    export HIP_DEV_TARGET="${HIP_DEV_TARGET:-gfx908}"
-    export MACHINE="${MACHINE:-MI100}"
-
-    export ROCM_PATH="${ROCM_PATH:-/opt/rocm}"
-    export HIP_PATH="${HIP_PATH:-$ROCM_PATH}"
-
-    export OPENCL_INC_DIR="${OPENCL_INC_DIR:-$ROCM_PATH/include}"
-    export OPENCL_LIB_DIR="${OPENCL_LIB_DIR:-$ROCM_PATH/lib}"
-    ;;
-
-  zenith)
-    # NVIDIA Ampere + AMD RDNA2
-    export BACKENDS="cuda,hip"
-    export CUDA_DEV_TARGET="${CUDA_DEV_TARGET:-sm_86}"
-    export HIP_DEV_TARGET="${HIP_DEV_TARGET:-gfx1030}"
-    export MACHINE="${MACHINE:-Ampere+RDNA2}"
-
-    export NVHPC_ROOT="${NVHPC_ROOT:-/opt/nvidia/hpc_sdk/Linux_x86_64/26.5}"
-    export CUDA_PATH="${CUDA_PATH:-$NVHPC_ROOT/cuda/12.9}"
-
-    export ROCM_PATH="${ROCM_PATH:-/opt/rocm}"
-    export HIP_PATH="${HIP_PATH:-$ROCM_PATH}"
-
-    # Prefer ROCm OpenCL on mixed AMD/NVIDIA hosts unless overridden.
-    export OPENCL_INC_DIR="${OPENCL_INC_DIR:-$ROCM_PATH/include}"
-    export OPENCL_LIB_DIR="${OPENCL_LIB_DIR:-$ROCM_PATH/lib}"
-    ;;
-
-  *)
-    echo "Unknown system ($HOST)." >&2
-    echo "Set CUDA_DEV_TARGET/HIP_DEV_TARGET, CUDA_PATH/ROCM_PATH manually or add this host." >&2
-    exit 1
-    ;;
-esac
+export BACKENDS="${BACKENDS:?Must set backends under test}"
+export COMPILER="${COMPILER:?Must set compiler flavour}"
 
 # CUDA setup
 if [[ "${BACKENDS}" == *"cuda"* ]]; then
-  if [[ -z "${CUDA_PATH:-}" && -x "$(command -v nvcc 2>/dev/null || true)" ]]; then
-    export CUDA_PATH="$(dirname "$(dirname "$(command -v nvcc)")")"
-  fi
+       export CUDA_DEV_TARGET="${CUDA_DEV_TARGET:?Must set CUDA_DEV_TARGET when cuda backend set}"
+       export CUDA_PATH="${CUDA_PATH:?Must set CUDA_ROOT when cuda backend set}"
+       export NVHPC_ROOT="${NVHPC_ROOT:-}" # TODO: this will use nvidia's library even when using scale, riiight?
 
-  if [[ "${ODW_USE_SCALE:-0}" != "1" ]]; then
-    export CUDA_HOME="$CUDA_PATH"
-    export CUDA_TOOLKIT_ROOT_PATH="$CUDA_PATH"
-    prepend_path "$CUDA_PATH/bin"
-  fi
+       if [[ "${ODW_USE_SCALE:-0}" != "1" ]]; then
+               export CUDA_HOME="$CUDA_PATH"
+               export CUDA_TOOLKIT_ROOT_PATH="$CUDA_PATH"
+               prepend_path "$CUDA_PATH/bin"
+       fi
 
-  if [[ -n "${NVHPC_ROOT:-}" ]]; then
-    append_ld_library_path "$NVHPC_ROOT/compilers/lib"
-    append_ld_library_path "$NVHPC_ROOT/math_libs/lib64"
-    append_ld_library_path "$NVHPC_ROOT/comm_libs/nccl/lib"
-    append_ld_library_path "$NVHPC_ROOT/comm_libs/nvshmem/lib"
-  fi
+       if [[ -n "${NVHPC_ROOT:-}" ]]; then
+               append_ld_library_path "$NVHPC_ROOT/compilers/lib"
+               append_ld_library_path "$NVHPC_ROOT/math_libs/lib64"
+               append_ld_library_path "$NVHPC_ROOT/comm_libs/nccl/lib"
+               append_ld_library_path "$NVHPC_ROOT/comm_libs/nvshmem/lib"
+       fi
 
-  append_ld_library_path "$CUDA_PATH/lib64"
+       append_ld_library_path "$CUDA_PATH/lib64"
+
+
+       export NVCC="${NVCC:-$CUDA_PATH/bin/nvcc}"
+       export CUDA_NVCC="${CUDA_NVCC:-${NVCC}}"
+       export CUDA_ARCH="${CUDA_DEV_TARGET#sm_}"
 fi
 
 # HIP/ROCm setup
 if [[ "${BACKENDS}" == *"hip"* ]]; then
-  if [[ -z "${ROCM_PATH:-}" && -x "$(command -v hipcc 2>/dev/null || true)" ]]; then
-    export ROCM_PATH="$(dirname "$(dirname "$(command -v hipcc)")")"
-  fi
+       export HIP_DEV_TARGET="${HIP_DEV_TARGET:?Must set HIP_DEV_TARGET when hip backend used}"
+       export ROCM_PATH="${ROCM_PATH:?Must set ROCM_PATH when hip backend used}"
+       export HIP_PATH="${HIP_PATH:-$ROCM_PATH}"
 
-  export HIP_PATH="${HIP_PATH:-$ROCM_PATH}"
+       prepend_path "$ROCM_PATH/bin"
+       append_ld_library_path "$ROCM_PATH/lib"
+       append_ld_library_path "$ROCM_PATH/lib64"
+       append_ld_library_path "$ROCM_PATH/llvm/lib"
 
-  prepend_path "$ROCM_PATH/bin"
-  append_ld_library_path "$ROCM_PATH/lib"
-  append_ld_library_path "$ROCM_PATH/lib64"
-  append_ld_library_path "$ROCM_PATH/llvm/lib"
-
-  export CC="${CC:-/usr/bin/gcc}"
-  export CXX="${CXX:-/usr/bin/g++}"
-  export HIPCC="$(command -v hipcc)"
+       export HIPCC="${HIPCC:-${HIP_PATH}/bin/hipcc}"
+       export HIP_ARCH="${HIP_ARCH:-$HIP_DEV_TARGET}"
 fi
 
 # OpenCL setup
 if [[ "${BACKENDS}" == *"opencl"* ]]; then
-  export OPENCL_CPPFLAGS="${OPENCL_CPPFLAGS:--DOPENCL -DCL_TARGET_OPENCL_VERSION=120 -I$OPENCL_INC_DIR}"
-  export OPENCL_LDFLAGS="${OPENCL_LDFLAGS:--L$OPENCL_LIB_DIR -Xlinker -rpath -Xlinker $OPENCL_LIB_DIR}"
-  export OPENCL_LDLIBS="${OPENCL_LDLIBS:--lOpenCL}"
+       export OPENCL_CPPFLAGS="${OPENCL_CPPFLAGS:--DOPENCL -DCL_TARGET_OPENCL_VERSION=120 -I$OPENCL_INC_DIR}"
+       export OPENCL_LDFLAGS="${OPENCL_LDFLAGS:--L$OPENCL_LIB_DIR -Xlinker -rpath -Xlinker $OPENCL_LIB_DIR}"
+       export OPENCL_LDLIBS="${OPENCL_LDLIBS:--lOpenCL}"
 
-  append_ld_library_path "$OPENCL_LIB_DIR"
-fi
+       append_ld_library_path "$OPENCL_LIB_DIR"
 
-# Convenience aliases consumed by Make/Python.
-if [[ "${BACKENDS}" == *"cuda"* ]]; then
-  export CUDA_ARCH="${CUDA_DEV_TARGET#sm_}"
+       # Prefer ROCm OpenCL unless overridden.
+    if ( [ -z "${OPENCL_INC_DIR:-}" ] || [ -z "${OPENCL_LIB_DIR}" ] ) && [ -z "${ROCM_PATH:-}" ]; then
+        echo "When using opencl backend, must set either OPENCL_INC_DIR and OPENCL_LIB_DIR, or set ROCM_PATH"
+        exit 1
+    fi
+       export OPENCL_INC_DIR="${OPENCL_INC_DIR:-$ROCM_PATH/include}"
+       export OPENCL_LIB_DIR="${OPENCL_LIB_DIR:-$ROCM_PATH/lib}"
 fi
 
 # CUDA 12.9/13.0 / SCALE workarounds for hosts with newer host compilers
@@ -311,61 +117,48 @@ fi
 # Keep these compiler-specific: SCALE needs libstdc++ paths; plain NVCC
 # only needs the CFD include-order workaround.
 case "${COMPILER:-}" in
-  scale-nvidia|scale-amd)
-    if [[ -n "${SCALE_CPLUS_INCLUDE_PATH:-}" ]]; then
-      export CPLUS_INCLUDE_PATH="$SCALE_CPLUS_INCLUDE_PATH"
-    fi
-    if [[ -n "${SCALE_LIBRARY_PATH:-}" ]]; then
-      export LIBRARY_PATH="$SCALE_LIBRARY_PATH"
-    fi
-    if [[ -n "${SCALE_LD_LIBRARY_PATH:-}" ]]; then
-      export LD_LIBRARY_PATH="$SCALE_LD_LIBRARY_PATH${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-    fi
+scale-nvidia | scale-amd)
+       if [[ -n "${SCALE_CPLUS_INCLUDE_PATH:-}" ]]; then
+               export CPLUS_INCLUDE_PATH="$SCALE_CPLUS_INCLUDE_PATH"
+       fi
+       if [[ -n "${SCALE_LIBRARY_PATH:-}" ]]; then
+               export LIBRARY_PATH="$SCALE_LIBRARY_PATH"
+       fi
+       if [[ -n "${SCALE_LD_LIBRARY_PATH:-}" ]]; then
+               export LD_LIBRARY_PATH="$SCALE_LD_LIBRARY_PATH${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+       fi
 
-    export NVCCFLAGS="${NVCCFLAGS:-}"
-    case " $NVCCFLAGS " in
-      *" -include include/odw_cuda_compat.h "*) ;;
-      *)
-        export NVCCFLAGS="${NVCCFLAGS:+$NVCCFLAGS }-include ${SCRIPT_DIR}/include/odw_cuda_compat.h"
-        ;;
-    esac
-    ;;
-  nvcc)
-    # Was previously gated on `[[ "${APP:-}" == "cfd" ]]`, but $APP is only
-    # ever the specific app name when the caller drives one app per `make`
-    # invocation (as runner.sh does). scale-validation's 03-test.sh calls
-    # `make run APP=all ...` as a single invocation; odw.py then loops over
-    # every app internally and shells out to `make <app>-cuda-nvcc` per app
-    # without ever re-sourcing this script, so an app-gated check here can
-    # never fire under APP=all regardless of host. Forcing these two
-    # includes ahead of any .cu file's own includes is harmless for the
-    # other apps, so apply unconditionally instead of gating on $APP.
-    export NVCCFLAGS="${NVCCFLAGS:-}"
-    case " $NVCCFLAGS " in
-      *" -include string "*) ;;
-      *) export NVCCFLAGS="${NVCCFLAGS:+$NVCCFLAGS }-include string" ;;
-    esac
-    case " $NVCCFLAGS " in
-      *" -include fstream "*) ;;
-      *) export NVCCFLAGS="${NVCCFLAGS:+$NVCCFLAGS }-include fstream" ;;
-    esac
-    ;;
+       export NVCCFLAGS="${NVCCFLAGS:-}"
+       case " $NVCCFLAGS " in
+       *" -include include/odw_cuda_compat.h "*) ;;
+       *)
+               export NVCCFLAGS="${NVCCFLAGS:+$NVCCFLAGS }-include ${SCRIPT_DIR}/include/odw_cuda_compat.h"
+               ;;
+       esac
+       ;;
+nvcc)
+       # Was previously gated on `[[ "${APP:-}" == "cfd" ]]`, but $APP is only
+       # ever the specific app name when the caller drives one app per `make`
+       # invocation (as runner.sh does). scale-validation's 03-test.sh calls
+       # `make run APP=all ...` as a single invocation; odw.py then loops over
+       # every app internally and shells out to `make <app>-cuda-nvcc` per app
+       # without ever re-sourcing this script, so an app-gated check here can
+       # never fire under APP=all regardless of host. Forcing these two
+       # includes ahead of any .cu file's own includes is harmless for the
+       # other apps, so apply unconditionally instead of gating on $APP.
+       export NVCCFLAGS="${NVCCFLAGS:-}"
+       case " $NVCCFLAGS " in
+       *" -include string "*) ;;
+       *) export NVCCFLAGS="${NVCCFLAGS:+$NVCCFLAGS }-include string" ;;
+       esac
+       case " $NVCCFLAGS " in
+       *" -include fstream "*) ;;
+       *) export NVCCFLAGS="${NVCCFLAGS:+$NVCCFLAGS }-include fstream" ;;
+       esac
+       ;;
 esac
 
-if [[ "${BACKENDS}" == *"hip"* ]]; then
-  export HIP_ARCH="${HIP_ARCH:-$HIP_DEV_TARGET}"
-fi
-
-export CC="${CC:-/usr/bin/gcc}"
-export CXX="${CXX:-/usr/bin/g++}"
-export NVCC="${NVCC:-$(command -v nvcc || true)}"
-export CUDA_NVCC="${CUDA_NVCC:-${NVCC:-$(command -v nvcc || true)}}"
-export HIPCC="${HIPCC:-$(command -v hipcc || true)}"
-
-
-echo "  MACHINE=$MACHINE"
 echo "  BACKENDS=$BACKENDS"
-echo "  SCALE_ROOT=${SCALE_ROOT:-}"
 echo "  CUDA_DEV_TARGET=${CUDA_DEV_TARGET:-}"
 echo "  CUDA_PATH=${CUDA_PATH:-}"
 echo "  HIP_DEV_TARGET=${HIP_DEV_TARGET:-}"
