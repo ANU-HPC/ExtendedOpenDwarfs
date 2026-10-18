@@ -167,98 +167,29 @@ run_one() {
     fi
   done
 }
+
 prepare_app() {
-  local app="$1"
-  case "$app" in
-    crc)
-      echo
-      echo "==> Preparing CRC datasets"
-      make -C combinational-logic/crc clean
-      make -C combinational-logic/crc datasets
-      ;;
-    cfd)
-      echo
-      echo "==> Preparing CFD datasets"
-      [[ -f test/unstructured-grids/cfd/128.dat ]] || \
-        python3 scripts/generate_cfd_dataset.py \
-          test/unstructured-grids/cfd/fvcorr.domn.193K \
-          test/unstructured-grids/cfd/128.dat \
-          128
-      [[ -f test/unstructured-grids/cfd/1284.dat ]] || \
-        python3 scripts/generate_cfd_dataset.py \
-          test/unstructured-grids/cfd/fvcorr.domn.193K \
-          test/unstructured-grids/cfd/1284.dat \
-          1284
-      [[ -f test/unstructured-grids/cfd/45056.dat ]] || \
-        python3 scripts/generate_cfd_dataset.py \
-          test/unstructured-grids/cfd/fvcorr.domn.193K \
-          test/unstructured-grids/cfd/45056.dat \
-          45056
-      [[ -f test/unstructured-grids/cfd/193474.dat ]] || \
-        python3 scripts/generate_cfd_dataset.py \
-          test/unstructured-grids/cfd/fvcorr.domn.193K \
-          test/unstructured-grids/cfd/193474.dat \
-          193474
-      ;;
-    swat)
-      echo
-      echo "==> Preparing SWAT datasets"
-      [[ -f test/dynamic-programming/swat/sampledb-tiny.data && \
-         -f test/dynamic-programming/swat/sampledb-tiny.loc && \
-         -f test/dynamic-programming/swat/sampledb-small.data && \
-         -f test/dynamic-programming/swat/sampledb-small.loc && \
-         -f test/dynamic-programming/swat/sampledb-medium.data && \
-         -f test/dynamic-programming/swat/sampledb-medium.loc && \
-         -f test/dynamic-programming/swat/sampledb-large.data && \
-         -f test/dynamic-programming/swat/sampledb-large.loc ]] || \
-        python3 scripts/generate_swat_dataset.py \
-          test/dynamic-programming/swat/sampledb1K1 \
-          test/dynamic-programming/swat
-      ;;
-    tdm)
-      echo
-      echo "==> Preparing TDM datasets"
-      [[ -f test/finite-state-machine/tdm/sim-64-size200-tiny.csv && \
-         -f test/finite-state-machine/tdm/episodes-tiny.txt && \
-         -f test/finite-state-machine/tdm/sim-64-size200-small.csv && \
-         -f test/finite-state-machine/tdm/episodes-small.txt && \
-         -f test/finite-state-machine/tdm/sim-64-size200-medium.csv && \
-         -f test/finite-state-machine/tdm/episodes-medium.txt && \
-         -f test/finite-state-machine/tdm/sim-64-size200-large.csv && \
-         -f test/finite-state-machine/tdm/episodes-large.txt ]] || \
-        python3 scripts/generate_tdm_dataset.py \
-          test/finite-state-machine/tdm/sim-64-size200.csv \
-          test/finite-state-machine/tdm/30-episodes.txt \
-          --output-dir test/finite-state-machine/tdm \
-          --prefix sim-64-size200 \
-          --episodes-prefix episodes
-      ;;
-  esac
+    "$SCRIPT_DIR/scripts/prepare_dataset.sh" "$1"
 }
+
 compiler_enabled() {
   local compiler="$1"
   [[ "$COMPILER" == "all" || "$COMPILER" == "$compiler" ]]
 }
+# Validates that the environment satisfies setup-backends.sh for this
+# backend *and* compiler (e.g. scale-amd runs under backend "cuda" but needs
+# a HIP target, not an NVIDIA toolkit). A missing setting is a hard error
+# from setup-backends.sh, deliberately not a silent skip, so a misconfigured
+# sweep can't "succeed" with no data. COMPILER is restored afterwards since
+# setup-backends.sh reads it from the environment.
 host_supports_backend() {
-  local backend="$1"
+  local backend="$1" compiler="$2"
+  local saved_backends="${BACKENDS:-}" saved_compiler="$COMPILER"
+  BACKENDS="$backend"
+  COMPILER="$compiler"
   . ./setup-backends.sh >/dev/null
-  case "$backend" in
-    opencl)
-      [[ "${BACKENDS:-}" == *"opencl"* ]]
-      ;;
-    cuda)
-      [[ "${BACKENDS:-}" == *"cuda"* ]]
-      ;;
-    hip)
-      [[ "${BACKENDS:-}" == *"hip"* ]]
-      ;;
-    scale-amd)
-      [[ -n "${HIP_DEV_TARGET:-}" ]]
-      ;;
-    *)
-      return 1
-      ;;
-  esac
+  BACKENDS="$saved_backends"
+  COMPILER="$saved_compiler"
 }
 run_size() {
   local size="$1"
@@ -268,7 +199,7 @@ run_size() {
   echo "============================================================"
   if [[ "$BACKEND" == "all" || "$BACKEND" == "opencl" ]]; then
     if compiler_enabled opencl; then
-      if host_supports_backend opencl; then
+      if host_supports_backend opencl opencl; then
         run_one opencl opencl "$size" env
       else
         echo "Skipping OpenCL: not available on this host"
@@ -277,7 +208,7 @@ run_size() {
   fi
   if [[ "$BACKEND" == "all" || "$BACKEND" == "hip" ]]; then
     if compiler_enabled hipcc; then
-      if host_supports_backend hip; then
+      if host_supports_backend hip hipcc; then
         run_one hip hipcc "$size" env
       else
         echo "Skipping HIP: not available on this host"
@@ -285,18 +216,22 @@ run_size() {
     fi
   fi
   if [[ "$BACKEND" == "all" || "$BACKEND" == "cuda" ]]; then
-    if host_supports_backend cuda; then
-      if compiler_enabled nvcc; then
-        run_one cuda nvcc "$size" env
+    # nvcc/scale-nvidia need an NVIDIA toolkit + sm target; check only when one
+    # of them is actually selected (a scale-amd-only run on an AMD host has none).
+    if compiler_enabled nvcc || compiler_enabled scale-nvidia; then
+      if host_supports_backend cuda nvcc; then
+        if compiler_enabled nvcc; then
+          run_one cuda nvcc "$size" env
+        fi
+        if compiler_enabled scale-nvidia; then
+          run_one cuda scale-nvidia "$size" env
+        fi
+      else
+        echo "Skipping CUDA: not available on this host"
       fi
-      if compiler_enabled scale-nvidia; then
-        run_one cuda scale-nvidia "$size" env
-      fi
-    else
-      echo "Skipping CUDA: not available on this host"
     fi
     if compiler_enabled scale-amd; then
-      if host_supports_backend scale-amd; then
+      if host_supports_backend cuda scale-amd; then
         run_one cuda scale-amd "$size" env
       elif [[ "$BACKEND" == "cuda" ]]; then
         echo "Skipping SCALE AMD path: HIP target not available on this host"
@@ -312,7 +247,7 @@ for app in "${APP_LIST[@]}"; do
   done
 done
 echo
-echo "Done. Results should be in ./results/"
+echo "Done. Results should be in $SCRIPT_DIR/results/"
 if [[ "$RUNNER_FAILED_ITERATIONS" -gt 0 ]]; then
   echo "WARNING: ${RUNNER_FAILED_ITERATIONS} iteration(s) failed (even after retry) and were skipped during this sweep -- see WARNING lines above for which app/size/backend/compiler configs were affected." >&2
 fi
