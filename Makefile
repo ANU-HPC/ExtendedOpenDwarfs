@@ -9,7 +9,9 @@ SIZE ?= tiny
 ITERS ?= 1
 
 export BACKENDS=$(BACKEND)
-export COMPILER=$(COMPILER)
+# COMPILER is already defined above (?=); `export COMPILER=$(COMPILER)` here
+# would make it a self-referential recursive variable and abort make.
+export COMPILER
 
 .PHONY: all build run clean ensure-liblsb install-liblsb clean-liblsb
 

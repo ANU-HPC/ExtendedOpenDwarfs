@@ -47,10 +47,27 @@ export CXX="${ODW_HOST_CXX:-/usr/bin/g++}"
 export BACKENDS="${BACKENDS:?Must set backends under test}"
 export COMPILER="${COMPILER:?Must set compiler flavour}"
 
+# "cuda" in BACKENDS means CUDA *source*. Which toolchain/target that needs
+# depends on COMPILER: nvcc and scale-nvidia need an NVIDIA toolkit and an
+# sm_* target, but scale-amd compiles the same CUDA source for AMD GPUs via
+# SCALE's scaleenv <gfx> (no NVIDIA toolkit on the host, e.g. benzar/tellar/
+# risa) and needs a HIP target instead. COMPILER=all (runner.sh's default)
+# keeps requiring the NVIDIA settings, as before.
+NEEDS_NVIDIA_TOOLKIT=0
+case "${COMPILER}" in
+nvcc | scale-nvidia | all) NEEDS_NVIDIA_TOOLKIT=1 ;;
+esac
+
+# SCALE-for-AMD (CUDA source, AMD target)
+if [[ "${BACKENDS}" == *"cuda"* && "${COMPILER}" == "scale-amd" ]]; then
+       export HIP_DEV_TARGET="${HIP_DEV_TARGET:?Must set HIP_DEV_TARGET when COMPILER=scale-amd}"
+       export HIP_ARCH="${HIP_ARCH:-$HIP_DEV_TARGET}"
+fi
+
 # CUDA setup
-if [[ "${BACKENDS}" == *"cuda"* ]]; then
+if [[ "${BACKENDS}" == *"cuda"* && "${NEEDS_NVIDIA_TOOLKIT}" == "1" ]]; then
        export CUDA_DEV_TARGET="${CUDA_DEV_TARGET:?Must set CUDA_DEV_TARGET when cuda backend set}"
-       export CUDA_PATH="${CUDA_PATH:?Must set CUDA_ROOT when cuda backend set}"
+       export CUDA_PATH="${CUDA_PATH:?Must set CUDA_PATH when cuda backend set}"
        export NVHPC_ROOT="${NVHPC_ROOT:-}" # TODO: this will use nvidia's library even when using scale, riiight?
 
        if [[ "${ODW_USE_SCALE:-0}" != "1" ]]; then
@@ -91,19 +108,21 @@ fi
 
 # OpenCL setup
 if [[ "${BACKENDS}" == *"opencl"* ]]; then
+       # Resolve the include/lib dirs first (prefer ROCm OpenCL unless
+       # overridden): the flags below expand them, and under `set -u` an
+       # unset OPENCL_*_DIR would otherwise abort before this check runs.
+       if { [[ -z "${OPENCL_INC_DIR:-}" ]] || [[ -z "${OPENCL_LIB_DIR:-}" ]]; } && [[ -z "${ROCM_PATH:-}" ]]; then
+               echo "When using opencl backend, must set either OPENCL_INC_DIR and OPENCL_LIB_DIR, or set ROCM_PATH" >&2
+               exit 1
+       fi
+       export OPENCL_INC_DIR="${OPENCL_INC_DIR:-$ROCM_PATH/include}"
+       export OPENCL_LIB_DIR="${OPENCL_LIB_DIR:-$ROCM_PATH/lib}"
+
        export OPENCL_CPPFLAGS="${OPENCL_CPPFLAGS:--DOPENCL -DCL_TARGET_OPENCL_VERSION=120 -I$OPENCL_INC_DIR}"
        export OPENCL_LDFLAGS="${OPENCL_LDFLAGS:--L$OPENCL_LIB_DIR -Xlinker -rpath -Xlinker $OPENCL_LIB_DIR}"
        export OPENCL_LDLIBS="${OPENCL_LDLIBS:--lOpenCL}"
 
        append_ld_library_path "$OPENCL_LIB_DIR"
-
-       # Prefer ROCm OpenCL unless overridden.
-    if ( [ -z "${OPENCL_INC_DIR:-}" ] || [ -z "${OPENCL_LIB_DIR}" ] ) && [ -z "${ROCM_PATH:-}" ]; then
-        echo "When using opencl backend, must set either OPENCL_INC_DIR and OPENCL_LIB_DIR, or set ROCM_PATH"
-        exit 1
-    fi
-       export OPENCL_INC_DIR="${OPENCL_INC_DIR:-$ROCM_PATH/include}"
-       export OPENCL_LIB_DIR="${OPENCL_LIB_DIR:-$ROCM_PATH/lib}"
 fi
 
 # CUDA 12.9/13.0 / SCALE workarounds for hosts with newer host compilers
@@ -118,6 +137,10 @@ fi
 # only needs the CFD include-order workaround.
 case "${COMPILER:-}" in
 scale-nvidia | scale-amd)
+       # Hosts whose default host compiler is too new for SCALE's clang (e.g.
+       # hudson, GCC 14) used to get these set by a per-host table; callers
+       # must now export SCALE_CPLUS_INCLUDE_PATH / SCALE_LIBRARY_PATH /
+       # SCALE_LD_LIBRARY_PATH themselves where needed.
        if [[ -n "${SCALE_CPLUS_INCLUDE_PATH:-}" ]]; then
                export CPLUS_INCLUDE_PATH="$SCALE_CPLUS_INCLUDE_PATH"
        fi
@@ -129,10 +152,13 @@ scale-nvidia | scale-amd)
        fi
 
        export NVCCFLAGS="${NVCCFLAGS:-}"
+       # Compare against the same absolute path we append, so re-sourcing
+       # this script doesn't add the flag again each time.
+       ODW_COMPAT_FLAG="-include ${SCRIPT_DIR}/include/odw_cuda_compat.h"
        case " $NVCCFLAGS " in
-       *" -include include/odw_cuda_compat.h "*) ;;
+       *" $ODW_COMPAT_FLAG "*) ;;
        *)
-               export NVCCFLAGS="${NVCCFLAGS:+$NVCCFLAGS }-include ${SCRIPT_DIR}/include/odw_cuda_compat.h"
+               export NVCCFLAGS="${NVCCFLAGS:+$NVCCFLAGS }$ODW_COMPAT_FLAG"
                ;;
        esac
        ;;

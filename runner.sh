@@ -176,9 +176,20 @@ compiler_enabled() {
   local compiler="$1"
   [[ "$COMPILER" == "all" || "$COMPILER" == "$compiler" ]]
 }
+# Validates that the environment satisfies setup-backends.sh for this
+# backend *and* compiler (e.g. scale-amd runs under backend "cuda" but needs
+# a HIP target, not an NVIDIA toolkit). A missing setting is a hard error
+# from setup-backends.sh, deliberately not a silent skip, so a misconfigured
+# sweep can't "succeed" with no data. COMPILER is restored afterwards since
+# setup-backends.sh reads it from the environment.
 host_supports_backend() {
-  local backend="$1"
+  local backend="$1" compiler="$2"
+  local saved_backends="${BACKENDS:-}" saved_compiler="$COMPILER"
+  BACKENDS="$backend"
+  COMPILER="$compiler"
   . ./setup-backends.sh >/dev/null
+  BACKENDS="$saved_backends"
+  COMPILER="$saved_compiler"
 }
 run_size() {
   local size="$1"
@@ -186,10 +197,9 @@ run_size() {
   echo "============================================================"
   echo "SIZE=$size"
   echo "============================================================"
-  export BACKENDS="$BACKEND"
   if [[ "$BACKEND" == "all" || "$BACKEND" == "opencl" ]]; then
     if compiler_enabled opencl; then
-      if host_supports_backend opencl; then
+      if host_supports_backend opencl opencl; then
         run_one opencl opencl "$size" env
       else
         echo "Skipping OpenCL: not available on this host"
@@ -198,7 +208,7 @@ run_size() {
   fi
   if [[ "$BACKEND" == "all" || "$BACKEND" == "hip" ]]; then
     if compiler_enabled hipcc; then
-      if host_supports_backend hip; then
+      if host_supports_backend hip hipcc; then
         run_one hip hipcc "$size" env
       else
         echo "Skipping HIP: not available on this host"
@@ -206,18 +216,22 @@ run_size() {
     fi
   fi
   if [[ "$BACKEND" == "all" || "$BACKEND" == "cuda" ]]; then
-    if host_supports_backend cuda; then
-      if compiler_enabled nvcc; then
-        run_one cuda nvcc "$size" env
+    # nvcc/scale-nvidia need an NVIDIA toolkit + sm target; check only when one
+    # of them is actually selected (a scale-amd-only run on an AMD host has none).
+    if compiler_enabled nvcc || compiler_enabled scale-nvidia; then
+      if host_supports_backend cuda nvcc; then
+        if compiler_enabled nvcc; then
+          run_one cuda nvcc "$size" env
+        fi
+        if compiler_enabled scale-nvidia; then
+          run_one cuda scale-nvidia "$size" env
+        fi
+      else
+        echo "Skipping CUDA: not available on this host"
       fi
-      if compiler_enabled scale-nvidia; then
-        run_one cuda scale-nvidia "$size" env
-      fi
-    else
-      echo "Skipping CUDA: not available on this host"
     fi
     if compiler_enabled scale-amd; then
-      if host_supports_backend scale-amd; then
+      if host_supports_backend cuda scale-amd; then
         run_one cuda scale-amd "$size" env
       elif [[ "$BACKEND" == "cuda" ]]; then
         echo "Skipping SCALE AMD path: HIP target not available on this host"
