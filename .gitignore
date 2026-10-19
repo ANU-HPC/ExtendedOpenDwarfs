@@ -8,6 +8,7 @@ configure
 *.swo
 external
 results
+profiles
 scale-*-Linux
 pixi.lock
 .RData

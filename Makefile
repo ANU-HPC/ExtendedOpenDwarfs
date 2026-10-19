@@ -13,7 +13,7 @@ export BACKENDS=$(BACKEND)
 # would make it a self-referential recursive variable and abort make.
 export COMPILER
 
-.PHONY: all build run clean ensure-liblsb install-liblsb clean-liblsb
+.PHONY: all build run profile clean ensure-liblsb install-liblsb clean-liblsb
 
 all: build
 
@@ -34,6 +34,11 @@ run: ensure-liblsb build
 		--compiler "$(COMPILER)" \
 		--size "$(SIZE)" \
 		--iterations "$(ITERS)"
+
+# Run one APP/COMPILER/SIZE under its profiler to examine a slowdown; output
+# in profiles/ (see scripts/profile.sh). Timings from this run are not results.
+profile:
+	APP="$(APP)" COMPILER="$(COMPILER)" SIZE="$(SIZE)" scripts/profile.sh
 
 clean:
 	scripts/odw.py clean \

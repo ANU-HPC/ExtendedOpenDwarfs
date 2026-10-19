@@ -285,15 +285,39 @@ def run_binary(app_dir, app, backend, compiler, final_args, lsb_name):
     if not exe.exists():
         raise SystemExit(f"Executable does not exist: {exe}")
 
-    results = REPO_ROOT / "results"
-    results.mkdir(exist_ok=True)
+    # ODW_PROFILE_DIR (set by scripts/profile.sh) runs the binary under a
+    # profiler instead of the normal timing run. It is a diagnostic aid for
+    # explaining slowdowns, so everything it writes, including the LSB file
+    # (profiling perturbs timings), goes to that directory, never results/.
+    prof_dir = os.environ.get("ODW_PROFILE_DIR", "").strip()
+    results = Path(prof_dir) if prof_dir else REPO_ROOT / "results"
+    results.mkdir(parents=True, exist_ok=True)
 
     if backend == "opencl":
         for kernel in app_dir.rglob("*.cl"):
             dst = results / kernel.name
             dst.write_bytes(kernel.read_bytes())
 
-    env_cmd = f"ODW_LSB_NAME={shlex.quote(lsb_name)} {shlex.quote(str(exe))}"
+    prof_prefix, prof_post = "", ""
+    if prof_dir:
+        base = shlex.quote(f"{prof_dir}/{lsb_name}")
+        if compiler == "scale-amd":
+            # SCALE's built-in profiler (RedScale). Summaries need scaleenv's PATH.
+            prof_prefix = f"SCALE_PROFILE={base}.prof "
+            prof_post = (
+                f" && redscale_profiler summary {base}.prof > {base}.kernels.txt"
+                f" && redscale_profiler summary {base}.prof -a > {base}.api.txt"
+                f" && redscale_profiler summary {base}.prof -Hm > {base}.memops.txt"
+            )
+        elif compiler == "hipcc":
+            flags = os.environ.get("ROCPROF_FLAGS", "--runtime-trace --stats --summary --output-format csv")
+            prof_prefix = f"rocprofv3 {flags} -d {shlex.quote(prof_dir)} -o {shlex.quote(lsb_name)} -- "
+        elif compiler in ("nvcc", "scale-nvidia"):
+            prof_prefix = f"nsys profile --stats=true --force-overwrite=true -o {base} "
+        else:
+            raise SystemExit(f"No profiler configured for compiler '{compiler}'")
+
+    env_cmd = f"ODW_LSB_NAME={shlex.quote(lsb_name)} {prof_prefix}{shlex.quote(str(exe))}"
     if final_args:
         env_cmd += " " + final_args
 
@@ -310,7 +334,7 @@ def run_binary(app_dir, app, backend, compiler, final_args, lsb_name):
 
         env_cmd = f"source {shlex.quote(scale_root + '/bin/scaleenv')} {shlex.quote(target)} && " + env_cmd
 
-    shell(["bash", "-c", env_cmd], cwd=results)
+    shell(["bash", "-c", env_cmd + prof_post], cwd=results)
 
 
 
