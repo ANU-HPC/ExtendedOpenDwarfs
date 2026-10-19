@@ -602,12 +602,16 @@ void runTest(int argc, char** argv)
 
 			record_region_start("device_side_d2h_copy");
 
+			// A zero-size read is CL_INVALID_VALUE (-30) in the OpenCL spec and
+			// ROCm enforces it. h_foundCount can be 0 when a level finds no
+			// candidates, so always read at least one record (it is never
+			// consumed: eliminateConflicts only uses h_foundCount entries).
 			errcode = clEnqueueReadBuffer(
 				commands,
 				d_startRecords,
 				CL_TRUE,
 				0,
-				h_foundCount * sizeof(cl_uint2),
+				(h_foundCount ? h_foundCount : 1) * sizeof(cl_uint2),
 				(void*) h_startRecords,
 				0,
 				NULL,
