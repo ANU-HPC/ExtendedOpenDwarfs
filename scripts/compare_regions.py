@@ -184,6 +184,19 @@ def main():
     ap.add_argument("--csv", help="also write a long-format CSV here")
     ap.add_argument("--show-total-ex-init", action="store_true",
                     help="also print total_ex_init (total without runtime_initialization/finalization); diagnostic only")
+    ap.add_argument("--regress", metavar="NEW,OLD",
+                    help="candidate pair to judge, e.g. v174:cuda/scale-amd,v173:cuda/scale-amd; prints a "
+                         "REGRESSION/SPEEDUP table of rows outside the noise floor (needs --noise)")
+    ap.add_argument("--noise", metavar="NEW,OLD",
+                    help="same-code reference pair giving the noise floor, e.g. v174:hip/hipcc,v173:hip/hipcc "
+                         "(identical source and toolchain in both, so any difference is noise or machine drift)")
+    ap.add_argument("--noise-mult", type=float, default=2.0,
+                    help="floor = max(--floor-min, noise-mult x |reference ratio - 1|) per row (default 2)")
+    ap.add_argument("--floor-min", type=float, default=0.10,
+                    help="smallest allowed floor, as a fraction (default 0.10; five-iteration medians are not "
+                         "stable below about +-7%%)")
+    ap.add_argument("--verdict-min-us", type=float, default=20.0,
+                    help="ignore rows whose largest value is below this many us (default 20)")
     a = ap.parse_args()
 
     dirs = []
@@ -213,7 +226,19 @@ def main():
     print("Columns (files read):", ", ".join(f"{c} [{files[c]}]" for c in cols), "\n")
     rhead = [f"{n} / {d}" for n, d in ratios]
 
-    summary, longrows = [], []
+    pairs = {}
+    for flag, spec in (("--regress", a.regress), ("--noise", a.noise)):
+        if spec:
+            if spec.count(",") != 1:
+                sys.exit(f"{flag} needs NEW,OLD, got {spec!r}")
+            pairs[flag] = tuple(spec.split(","))
+            for c in pairs[flag]:
+                if c not in cols:
+                    sys.exit(f"{flag} column {c!r} not found; available: {', '.join(cols)}")
+    if a.regress and not a.noise:
+        sys.exit("--regress needs --noise (a same-code reference pair, e.g. HIP in both versions)")
+
+    summary, longrows, verdict_src = [], [], []
     for bench in sorted(data):
         if a.app and bench not in a.app:
             continue
@@ -221,6 +246,7 @@ def main():
         body = []
         for region in sorted(regs, key=lambda r: (classify(r), r)):
             vals = regs[region]
+            verdict_src.append((bench, region, vals))
             if max(vals.values()) < a.min_us:
                 continue
             row = [region, classify(region)] + [fmt_us(vals.get(c)) for c in cols]
@@ -243,9 +269,42 @@ def main():
             vals = {c: agg(c, pred) for c in cols}
             summary.append([bench, metric] + [fmt_us(vals[c]) for c in cols]
                            + [fmt_ratio(vals.get(n), vals.get(d), a.tol) for n, d in ratios])
+            if metric in ("kernel", "total"):
+                verdict_src.append((bench, f"[{metric}]", {c: v for c, v in vals.items() if v is not None}))
 
     print("## Summary (sum of per-repeat region means, us)\n")
     print(table(summary, ["app", "metric"] + cols + rhead))
+
+    if a.regress:
+        cn, co = pairs["--regress"]
+        rn, ro = pairs["--noise"]
+        rows, examined = [], 0
+        for bench, name, vals in verdict_src:
+            if any(vals.get(c) in (None, 0) for c in (cn, co, rn, ro)):
+                continue
+            if max(vals[c] for c in (cn, co, rn, ro)) < a.verdict_min_us:
+                continue
+            examined += 1
+            r = vals[cn] / vals[co]
+            noise = vals[rn] / vals[ro]
+            floor = max(a.floor_min, a.noise_mult * abs(noise - 1.0))
+            if r > 1 + floor:
+                verdict = "REGRESSION"
+            elif r < 1 - floor:
+                verdict = "SPEEDUP"
+            else:
+                continue
+            rows.append((verdict, abs(vals[cn] - vals[co]), bench, name, vals[co], vals[cn], r, noise, floor))
+        print(f"\n## Verdict: {cn} vs {co}\n")
+        print(f"Floor per row = max({a.floor_min:.0%}, {a.noise_mult:g} x |reference ratio - 1|) where the reference is "
+              f"{rn} / {ro} (same code in both, so any difference there is noise or machine drift). "
+              f"{examined} rows examined (>= {a.verdict_min_us:g} us), {len(rows)} outside the floor. "
+              f"Rows are per-repeat means from medians over the run files; a region recorded once per run "
+              f"(one-off) is a single sample, so treat those with care.\n")
+        rows.sort(key=lambda t: (t[0] != "REGRESSION", -t[1]))
+        print(table([[v, b, n, fmt_us(old), fmt_us(new), f"{r:.2f}x", f"{nz:.2f}x", f"+-{fl:.0%}", f"{new - old:+,.1f}"]
+                     for v, d, b, n, old, new, r, nz, fl in rows],
+                    ["verdict", "app", "region", "old us", "new us", "ratio", "noise ratio", "floor", "delta us"]))
 
     if a.csv:
         with open(a.csv, "w", newline="") as f:
