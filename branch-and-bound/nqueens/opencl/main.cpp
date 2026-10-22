@@ -38,6 +38,7 @@ int main(int argc, char** argv)
   LSB_Init(lsb_name, 0);
   LSB_Set_Rparam_int("board_size", 0);
   LSB_Set_Rparam_int("j", 0);
+  LSB_Set_Rparam_int("repeats_to_two_seconds", 0);
   LSB_Set_Rparam_string("region", "runtime_initialization");
   LSB_Res();
 #endif

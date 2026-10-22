@@ -188,6 +188,9 @@ int main(int argc, char** argv)
 
 	LSB_Init(lsb_name, 0);
 	LSB_Set_Rparam_int("repeats_to_two_seconds", 0);
+	/* Declare every parameter before the first region (see crc_algo.cu). */
+	LSB_Set_Rparam_int("number_of_pages", 0);
+	LSB_Set_Rparam_int("page_size", 0);
 
 	LSB_Set_Rparam_string("region", "runtime_initialization");
 	LSB_Res();

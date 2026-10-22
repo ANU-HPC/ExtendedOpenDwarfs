@@ -191,6 +191,12 @@ long long NQueenSolverCUDA::Compute(int board_size, long long* unique)
     int max_pitch = (max_threads + 15) & ~0xf;
 
 #if HAVE_LSB
+    /* Declare every parameter before the first region: a parameter first set later prints
+     * as NA in earlier rows, and adjacent NAs fuse ("NANA"), shifting the columns and
+     * losing the time of the runtime_initialization row. */
+    LSB_Set_Rparam_int("repeats_to_two_seconds", 0);
+    LSB_Set_Rparam_int("j", 0);
+
     LSB_Set_Rparam_string("region", "runtime_initialization");
     LSB_Res();
 #endif

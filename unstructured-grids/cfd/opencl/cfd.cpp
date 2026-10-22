@@ -199,6 +199,11 @@ int main(int argc, char** argv)
 
     LSB_Init(lsb_name, 0);
     LSB_Set_Rparam_int("repeats_to_two_seconds", 0);
+    /* Declare every parameter before the first region (see cfd.cu). The input file name is
+     * only known after argument parsing, so use a non-empty placeholder for now. */
+    LSB_Set_Rparam_string("input_file", "none");
+    LSB_Set_Rparam_int("nel", 0);
+    LSB_Set_Rparam_int("nelr", 0);
 
     LSB_Set_Rparam_string("region", "runtime_initialization");
     LSB_Res();

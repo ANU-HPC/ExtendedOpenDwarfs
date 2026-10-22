@@ -90,11 +90,18 @@ def read_regions(path):
     """-> {region: per-repeat mean in us}"""
     header = None
     agg = {}
+    warn_cols = []
     with open(path, errors="replace") as f:
         for line in f:
             if line.startswith("#") or not line.strip():
                 continue
             parts = line.split()
+            # liblsb prints an unset parameter as "NA" with no separator, so adjacent unset
+            # parameters appear fused ("NANA"). Split them so columns line up with the header.
+            parts = [p2 for p in parts
+                     for p2 in (["NA"] * (len(p) // 2) if re.fullmatch(r"(?:NA){2,}", p) else [p])]
+            if header is not None and len(parts) != len(header):
+                warn_cols.append(path)
             if header is None:
                 if "region" in parts and "time" in parts:
                     header = parts
@@ -116,6 +123,9 @@ def read_regions(path):
             total, reps = agg.setdefault(parts[ri], [0.0, set()])
             agg[parts[ri]][0] = total + t
             reps.add(rep)
+    if warn_cols:
+        print(f"warning: {Path(path).name}: {len(warn_cols)} row(s) with a different field count "
+              f"than the header; times in those rows may be wrong", file=sys.stderr)
     return {r: tot / max(len(reps), 1) for r, (tot, reps) in agg.items()}
 
 

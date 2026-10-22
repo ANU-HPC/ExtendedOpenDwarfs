@@ -448,6 +448,11 @@ int main(int argc, char** argv)
     LSB_Init(get_lsb_name(), 0);
     LSB_Set_Rparam_int("repeats_to_two_seconds", 0);
     LSB_Set_Rparam_string("input_file", data_file_name);
+    /* Declare every parameter before the first region: a parameter first set later prints
+     * as NA in earlier rows, and adjacent NAs fuse ("NANA"), shifting the columns and
+     * losing the time of the runtime_initialization row. */
+    LSB_Set_Rparam_int("nel", 0);
+    LSB_Set_Rparam_int("nelr", 0);
 
     LSB_Set_Rparam_string("region", "runtime_initialization");
     LSB_Res();

@@ -150,6 +150,10 @@ void NQueenSolver::InitKernels(int i, int block_size)
 		m_SolverInfo[i].m_bEnableAtomics = false;
 	}
 
+    /* Declare every parameter before the first region (see nqueen_cuda.cu). */
+    LSB_Set_Rparam_int("repeats_to_two_seconds", 0);
+    LSB_Set_Rparam_int("j", 0);
+
     LSB_Set_Rparam_string("region", "kernel_creation");
     LSB_Res();
 	// load program

@@ -187,6 +187,11 @@ int main(int argc, char** argv)
 
 	LSB_Init(lsb_name, 0);
 	LSB_Set_Rparam_int("repeats_to_two_seconds", 0);
+	/* Declare every parameter before the first region: parameters first set later
+	 * print as NA in earlier rows, and two adjacent NAs fuse into one token ("NANA"),
+	 * which shifts the columns and loses the time of the runtime_initialization row. */
+	LSB_Set_Rparam_int("number_of_pages", 0);
+	LSB_Set_Rparam_int("page_size", 0);
 
 	LSB_Set_Rparam_string("region", "runtime_initialization");
 	LSB_Res();

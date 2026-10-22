@@ -357,6 +357,22 @@ count_lines_fast <- function(path) {
   if (is.na(n)) NA_integer_ else n
 }
 
+# liblsb prints a parameter that has not been set yet as "NA" with no separator, so two
+# adjacent unset parameters appear as one fused token ("NANA"). The row then has fewer
+# fields than the header and every later column shifts (fread(fill = TRUE) hides this),
+# which silently reads the wrong value as `time`. Current EOD sources declare all
+# parameters before the first region, so this should never occur in new results; data
+# produced before that fix is rejected rather than misread.
+count_fused_na_rows <- function(path) {
+  out <- suppressWarnings(tryCatch(
+    system2("grep", c("-c", "-E", shQuote("(^|[[:space:]])(NA){2,}([[:space:]]|$)"), shQuote(path)),
+            stdout = TRUE, stderr = FALSE),
+    error = function(e) character(0)
+  ))
+  n <- suppressWarnings(as.integer(out[1]))
+  if (length(out) == 0 || is.na(n)) NA_integer_ else n
+}
+
 read_lsb_file_fast <- function(path) {
   meta <- parse_lsb_filename(path)
   if (is.null(meta)) {
@@ -368,6 +384,16 @@ read_lsb_file_fast <- function(path) {
   if (is.na(header$header_idx)) {
     warning("Could not locate LSB data header in ", basename(path))
     return(NULL)
+  }
+
+  n_fused <- count_fused_na_rows(path)
+  if (!is.na(n_fused) && n_fused > 0L) {
+    stop(sprintf(
+      paste0("%d row(s) contain fused unset-parameter tokens ('NANA'): results from an EOD build that did not ",
+             "declare every LSB parameter before its first region; column positions are unreliable. ",
+             "Rebuild EOD from current sources and rerun."),
+      n_fused
+    ))
   }
 
   system <- extract_nodename_fast(header$lines)
@@ -560,6 +586,10 @@ parse_files_with_progress <- function(files) {
     if (length(warned) > show_n) {
       log_msg("  ... and %d more", length(warned) - show_n)
     }
+  }
+
+  if (length(files) > 0L && length(failed) == length(files)) {
+    stop("None of the ", length(files), " LSB file(s) could be parsed; see the messages above.")
   }
 
   bind_rows(lapply(parsed, function(x) x$rows))
