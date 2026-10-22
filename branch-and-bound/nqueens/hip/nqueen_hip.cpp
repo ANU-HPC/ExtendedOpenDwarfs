@@ -10,6 +10,7 @@
 #include <sstream>
 #include <vector>
 #include <sys/time.h>
+#include "../../../include/odw_runtime_init.h"
 
 #if __has_include(<liblsb.h>)
 #include <liblsb.h>
@@ -186,19 +187,6 @@ long long NQueenSolverHIP::Compute(int board_size, long long* unique)
     int max_pitch = (max_threads + 15) & ~0xf;
 
 #if HAVE_LSB
-    /* Declare every parameter before the first region (see nqueen_cuda.cu). */
-    LSB_Set_Rparam_int("repeats_to_two_seconds", 0);
-    LSB_Set_Rparam_int("j", 0);
-
-    LSB_Set_Rparam_string("region", "runtime_initialization");
-    LSB_Res();
-#endif
-
-    HIP_CHECK(hipFree(0));
-
-#if HAVE_LSB
-    LSB_Rec(0);
-
     LSB_Set_Rparam_string("region", "device_side_buffer_setup");
     LSB_Res();
 #endif
@@ -568,4 +556,9 @@ long long NQueenSolverHIP::Compute(int board_size, long long* unique)
     }
 
     return solutions;
+}
+
+void nqueen_runtime_init()
+{
+    odw_runtime_init(0);
 }

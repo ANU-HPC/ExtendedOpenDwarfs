@@ -73,11 +73,7 @@ int main(int argc, char* argv[])
 	LSB_Set_Rparam_int("matrix_dimension", 0);
 	LSB_Set_Rparam_int("repeats_to_two_seconds", 0);
 
-	record_region_start("runtime_initialization");
-
-	ocd_init(&argc, &argv, NULL);
-	ocd_initCL();
-
+	ocd_init(&argc, &argv, NULL);  /* argument parsing and option handling: outside the timed region */
 	if (ocd_get_options().workgroup_1d != 0) {
 		BLOCK_SIZE = ocd_get_options().workgroup_1d;
 	}
@@ -112,6 +108,10 @@ int main(int argc, char* argv[])
 		exit(EXIT_FAILURE);
 	}
 
+	
+
+	record_region_start("runtime_initialization");
+	ocd_runtime_init();
 	record_region_end(0);
 
 	record_region_start("host_input_setup");

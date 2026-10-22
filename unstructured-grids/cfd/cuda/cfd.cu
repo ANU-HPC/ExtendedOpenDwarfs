@@ -18,6 +18,7 @@
 
 #include "lsb.h"
 #include "portable_memory.h"
+#include "../../../include/odw_runtime_init.h"
 
 #define AOCL_ALIGNMENT 64
 #define MIN_TIME_SEC 2
@@ -456,7 +457,7 @@ int main(int argc, char** argv)
 
     LSB_Set_Rparam_string("region", "runtime_initialization");
     LSB_Res();
-    CUDA_CHECK(cudaFree(NULL));
+    odw_runtime_init(0);
     LSB_Rec(0);
 
     int nel = 0;

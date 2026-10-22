@@ -15,6 +15,7 @@ extern "C" {
 #define __constant static const
 #define crc32Lookup crc32LookupHost
 #include "../include/eth_crc32_lut.h"
+#include "../../../include/odw_runtime_init.h"
 #undef crc32Lookup
 #undef __constant
 
@@ -195,7 +196,7 @@ int main(int argc, char** argv)
 
 	LSB_Set_Rparam_string("region", "runtime_initialization");
 	LSB_Res();
-	cuda_check(cudaFree(0), "failed to initialize CUDA runtime");
+	odw_runtime_init(0);
 	cuda_check(cudaStreamCreate(&stream), "failed to create CUDA stream");
 	LSB_Rec(0);
 

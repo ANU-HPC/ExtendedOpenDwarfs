@@ -95,11 +95,10 @@ int main(int argc, char** argv)
 	LSB_Set_Rparam_int("block_num", 0);
 	LSB_Set_Rparam_int("thread_num", 0);
 
+	ocd_init(&argc, &argv, NULL);  /* argument parsing: outside the timed region */
+
 	record_region_start("runtime_initialization");
-
-	ocd_init(&argc, &argv, NULL);
-	ocd_initCL();
-
+	ocd_runtime_init();
 	record_region_end(0);
 
 	if (argc < 3) {

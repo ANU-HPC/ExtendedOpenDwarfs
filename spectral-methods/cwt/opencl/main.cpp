@@ -321,16 +321,30 @@ int main(int argc, char **argv)
         cl_int err = CL_SUCCESS;
         cl_device_id dev = select_device(args.platform, args.device);
 
-        char device_name[512] = {0};
-        clGetDeviceInfo(dev, CL_DEVICE_NAME, sizeof(device_name), device_name, nullptr);
-
         cl_context ctx = clCreateContext(nullptr, 1, &dev, nullptr, nullptr, &err);
         check_cl(err, "clCreateContext");
 
         cl_command_queue q = clCreateCommandQueue(ctx, dev, 0, &err);
         check_cl(err, "clCreateCommandQueue");
 
+        {
+            /* allocator + host-to-device copy path warm-up: same work as ocd_runtime_init() */
+            char host_bytes[4096] = {0};
+            cl_mem buf = clCreateBuffer(ctx, CL_MEM_READ_WRITE, sizeof host_bytes, nullptr, &err);
+            check_cl(err, "clCreateBuffer");
+            check_cl(clEnqueueWriteBuffer(q, buf, CL_TRUE, 0, sizeof host_bytes, host_bytes, 0, nullptr, nullptr), "clEnqueueWriteBuffer");
+            check_cl(clFinish(q), "clFinish");
+            check_cl(clReleaseMemObject(buf), "clReleaseMemObject");
+        }
+
         LSB_Rec(0);
+
+        /* Device name query: outside the timed region so that runtime_initialization measures only start-up. */
+        char device_name[512] = {0};
+        clGetDeviceInfo(dev, CL_DEVICE_NAME, sizeof(device_name), device_name, nullptr);
+
+        
+
 
         LSB_Set_Rparam_string("region", "host_side_setup");
         LSB_Res();

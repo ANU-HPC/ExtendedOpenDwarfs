@@ -77,6 +77,9 @@ extern void ocd_init(int* argc, char*** argv, ocd_requirements* reqs);
 extern void ocd_finalize();
 extern void checkDeviceChoice(int devType);
 extern void ocd_initCL();
+/* initCL plus a warm-up of the allocator and copy path; see common_args.c. Use this (not
+ * ocd_initCL) as the body of the "runtime_initialization" LSB region. */
+extern void ocd_runtime_init();
 
 //From nz-ocl
 extern void check(int b,const char* msg);

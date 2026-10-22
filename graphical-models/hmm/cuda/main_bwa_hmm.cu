@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include <include/lsb.h>
+#include "../../../include/odw_runtime_init.h"
 
 #define AOCL_ALIGNMENT 64
 #define MIN_TIME_SEC 2
@@ -745,8 +746,7 @@ int main(int argc, char* argv[])
 
 	record_region_start("runtime_initialization");
 
-	cuda_check(cudaSetDevice(cuda_device), "failed to set CUDA device");
-	cuda_check(cudaFree(0), "failed to initialize CUDA runtime");
+	odw_runtime_init(cuda_device);
 
 	cudaStream_t stream;
 	cuda_check(cudaStreamCreate(&stream), "failed to create CUDA stream");

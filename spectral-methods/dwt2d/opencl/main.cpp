@@ -883,7 +883,7 @@ int main(int argc, char **argv)
 
     LSB_Set_Rparam_string("region", "runtime_initialization");
     LSB_Res();
-    ocd_initCL();
+    ocd_runtime_init();
     LSB_Rec(0);
 
 	//

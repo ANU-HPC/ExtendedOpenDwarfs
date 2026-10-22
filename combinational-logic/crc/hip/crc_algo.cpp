@@ -16,6 +16,7 @@ extern "C" {
 #define __constant static const
 #define crc32Lookup crc32LookupHost
 #include "../include/eth_crc32_lut.h"
+#include "../../../include/odw_runtime_init.h"
 #undef crc32Lookup
 #undef __constant
 
@@ -194,7 +195,7 @@ int main(int argc, char** argv)
 
 	LSB_Set_Rparam_string("region", "runtime_initialization");
 	LSB_Res();
-	hip_check(hipFree(0), "failed to initialize HIP runtime");
+	odw_runtime_init(0);
 	hip_check(hipStreamCreate(&stream), "failed to create HIP stream");
 	LSB_Rec(0);
 

@@ -184,14 +184,13 @@ int main(int argc, char** argv)
     LSB_Set_Rparam_int("execution_number", 0);
     LSB_Set_Rparam_int("repeats_to_two_seconds", 0);
 
+    //Does NOT use ocd_init() because we use TIMER_INIT (the 3rd thing in ocd_init) MANY TIMES in LOOOP! (nz-ocl)
+    ocd_parse(&argc, &argv);  /* argument parsing: outside the timed region */
+    ocd_check_requirements(NULL);
+
     LSB_Set_Rparam_string("region", "runtime_initialization");
     LSB_Res();
-
-	//Does NOT use ocd_init() because we use TIMER_INIT (the 3rd thing in ocd_init) MANY TIMES in LOOOP! (nz-ocl)
-	ocd_parse(&argc, &argv);
-	ocd_check_requirements(NULL);
-	ocd_initCL();
-
+    ocd_runtime_init();
     LSB_Rec(0);
 
     LSB_Set_Rparam_string("region", "host_side_setup");

@@ -13,6 +13,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include "../../../include/odw_runtime_init.h"
 
 using real_t = double;
 
@@ -253,12 +254,15 @@ int main(int argc, char **argv)
 
         LSB_Set_Rparam_string("region", "runtime_initialization");
         LSB_Res();
-        check_cuda(cudaFree(0), "cuda runtime initialization");
+        odw_runtime_init(0);
+        LSB_Rec(0);
+
+        // Device property query: outside the timed region so that runtime_initialization
+        // measures only the shared start-up helper.
         cudaDeviceProp prop{};
         int dev = 0;
         check_cuda(cudaGetDevice(&dev), "cudaGetDevice");
         check_cuda(cudaGetDeviceProperties(&prop, dev), "cudaGetDeviceProperties");
-        LSB_Rec(0);
 
         LSB_Set_Rparam_string("region", "host_side_setup");
         LSB_Res();

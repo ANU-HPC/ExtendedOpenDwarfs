@@ -10,6 +10,7 @@ extern "C" {
 #include "../../../include/lsb.h"
 #define ODW_SPMV_NO_COMMON_ARGS
 #include "../inc/sparse_formats.h"
+#include "../../../include/odw_runtime_init.h"
 
 void check(int b, const char* msg);
 void* float_new_array(const size_t N, const char* error_msg);
@@ -116,7 +117,7 @@ int main(int argc, char** argv)
 
     LSB_Set_Rparam_string("region", "runtime_initialization");
     LSB_Res();
-    CUDA_CHECK(cudaFree(NULL));
+    odw_runtime_init(0);
     LSB_Rec(0);
 
     LSB_Set_Rparam_string("region", "host_side_setup");

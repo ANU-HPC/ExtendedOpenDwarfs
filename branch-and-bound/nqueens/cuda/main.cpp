@@ -50,6 +50,7 @@ int main(int argc, char** argv)
     LSB_Init(lsb_name, 0);
     LSB_Set_Rparam_int("board_size", 0);
     LSB_Set_Rparam_int("j", 0);
+    LSB_Set_Rparam_int("repeats_to_two_seconds", 0);
 #endif
 
     bool force_cpu = false;
@@ -116,6 +117,17 @@ int main(int argc, char** argv)
                       << "s\n";
         }
         else {
+            // Time device start-up first, before the solver constructor queries the device,
+            // so every runtime pays its lazy initialisation inside this one region.
+#if HAVE_LSB
+            LSB_Set_Rparam_string("region", "runtime_initialization");
+            LSB_Res();
+#endif
+            nqueen_runtime_init();
+#if HAVE_LSB
+            LSB_Rec(0);
+#endif
+
             NQueenSolverCUDA nqueen(threads,
                                     block_size,
                                     local,

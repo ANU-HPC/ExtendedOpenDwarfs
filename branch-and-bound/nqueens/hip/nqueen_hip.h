@@ -10,6 +10,11 @@ public:
     HipError(const std::string& msg, int line);
 };
 
+// Device start-up, timed as the "runtime_initialization" region by main(). Must run before the
+// solver is constructed (the constructor queries device properties and would otherwise
+// initialise the runtime outside any timed region).
+void nqueen_runtime_init();
+
 class NQueenSolverHIP {
 public:
     NQueenSolverHIP(int threads,

@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include <include/lsb.h>
+#include "../../../include/odw_runtime_init.h"
 
 #define AOCL_ALIGNMENT 64
 #define MIN_TIME_SEC 2
@@ -745,8 +746,7 @@ int main(int argc, char* argv[])
 
 	record_region_start("runtime_initialization");
 
-	hip_check(hipSetDevice(hip_device), "failed to set HIP device");
-	hip_check(hipFree(0), "failed to initialize HIP runtime");
+	odw_runtime_init(hip_device);
 
 	hipStream_t stream;
 	hip_check(hipStreamCreate(&stream), "failed to create HIP stream");

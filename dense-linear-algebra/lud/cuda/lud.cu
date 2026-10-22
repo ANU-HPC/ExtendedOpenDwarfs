@@ -14,6 +14,7 @@
 
 extern "C" {
 #include "common.h"
+#include "../../../include/odw_runtime_init.h"
 }
 
 int BLOCK_SIZE = 16;
@@ -191,8 +192,7 @@ int main(int argc, char** argv)
 
 	record_region_start("runtime_initialization");
 
-	cuda_check(cudaSetDevice(cuda_device), "failed to select CUDA device");
-	cuda_check(cudaFree(0), "failed to initialize CUDA runtime");
+	odw_runtime_init(cuda_device);
 	cuda_check(cudaStreamCreate(&stream), "failed to create CUDA stream");
 
 	printf("CUDA device = %d\n", cuda_device);

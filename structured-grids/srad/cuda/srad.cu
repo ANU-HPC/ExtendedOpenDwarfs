@@ -8,6 +8,7 @@
 #include <sys/time.h>
 
 #include "../../../include/lsb.h"
+#include "../../../include/odw_runtime_init.h"
 
 #define BLOCK_SIZE 16
 #define MIN_TIME_SEC 2
@@ -262,7 +263,7 @@ int main(int argc, char** argv)
 
     LSB_Set_Rparam_string("region", "runtime_initialization");
     LSB_Res();
-    CUDA_CHECK(cudaFree(NULL));
+    odw_runtime_init(0);
     LSB_Rec(0);
 
     LSB_Set_Rparam_string("region", "host_side_setup");

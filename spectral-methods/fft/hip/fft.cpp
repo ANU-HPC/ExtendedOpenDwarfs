@@ -7,6 +7,7 @@
 #include <sys/time.h>
 
 #include "lsb.h"
+#include "../../../include/odw_runtime_init.h"
 
 #define MIN_TIME_SEC 2
 #define THREADS 256
@@ -431,7 +432,7 @@ int main(int argc, char** argv)
 
     LSB_Set_Rparam_string("region", "runtime_initialization");
     LSB_Res();
-    HIP_CHECK(hipFree(nullptr));
+    odw_runtime_init(0);
     LSB_Rec(0);
 
     int rc = run_fft(n);

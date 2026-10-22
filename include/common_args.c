@@ -322,7 +322,36 @@ void ocd_initCL()
     // Create a command queue
     commands = clCreateCommandQueue(context, device_id, CL_QUEUE_PROFILING_ENABLE, &err);
     CHKERR(err, "Failed to create a command queue!");
-    
+
+}
+
+/*
+ * Shared OpenCL device start-up: the counterpart of odw_runtime_init() (include/odw_runtime_init.h)
+ * for the CUDA and HIP variants, and it must do the same work:
+ *   1. device selection and runtime/context initialisation, plus the command queue
+ *      (ocd_initCL),
+ *   2. the device allocator (allocate a small buffer),
+ *   3. the host-to-device copy path (one small blocking write),
+ *   4. synchronisation, then release.
+ * The LSB region "runtime_initialization" must contain exactly this call (plus any extra
+ * queues the application itself creates) and nothing else; argument parsing happens before.
+ * No kernel is built or launched here: program build is timed as "kernel_creation".
+ */
+void ocd_runtime_init()
+{
+	cl_int err;
+	char host_bytes[4096] = {0};
+
+	ocd_initCL();
+
+	cl_mem buf = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof host_bytes, NULL, &err);
+	CHKERR(err, "Failed to allocate the start-up buffer!");
+	err = clEnqueueWriteBuffer(commands, buf, CL_TRUE, 0, sizeof host_bytes, host_bytes, 0, NULL, NULL);
+	CHKERR(err, "Failed to write the start-up buffer!");
+	err = clFinish(commands);
+	CHKERR(err, "Failed to finish the start-up queue!");
+	err = clReleaseMemObject(buf);
+	CHKERR(err, "Failed to release the start-up buffer!");
 }
 
 //Below, from nz-ocl

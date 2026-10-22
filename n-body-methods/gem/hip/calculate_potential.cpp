@@ -10,6 +10,7 @@
 #include <sys/time.h>
 
 #include "lsb.h"
+#include "../../../include/odw_runtime_init.h"
 
 #define ALPHA_OF 0.571412f
 #define REACTION_POTENTIAL 2
@@ -322,7 +323,7 @@ void calc_potential_single_step(
     LSB_Set_Rparam_int("repeats_to_two_seconds", 0);
 
     record_region_start("runtime_initialization");
-    HIP_CHECK(hipFree(nullptr));
+    odw_runtime_init(0);
     record_region_end(0);
 
     record_region_start("kernel_creation");

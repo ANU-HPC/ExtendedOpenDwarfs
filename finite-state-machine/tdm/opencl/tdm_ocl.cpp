@@ -315,11 +315,10 @@ void runTest(int argc, char** argv)
 	unsigned int* buff1 = NULL;
 	unsigned int* buff2 = NULL;
 
+	ocd_init(&argc, &argv, NULL);  /* argument parsing: outside the timed region */
+
 	record_region_start("runtime_initialization");
-
-	ocd_init(&argc, &argv, NULL);
-	ocd_initCL();
-
+	ocd_runtime_init();
 	record_region_end(0);
 
 	if (argc != 7) {

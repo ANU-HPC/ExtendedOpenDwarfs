@@ -71,7 +71,6 @@ void BFSGraph(int argc, char** argv);
 int main(int argc, char** argv)
 {
 	ocd_init(&argc, &argv, NULL);
-	ocd_initCL();
 	no_of_nodes = 0;
 	edge_list_size = 0;
 	BFSGraph(argc, argv);
@@ -110,6 +109,12 @@ void BFSGraph(int argc, char ** argv)
         LSB_Init(lsb_name, 0);
     }
     LSB_Set_Rparam_int("repeats_to_two_seconds", 0);
+
+    LSB_Set_Rparam_string("region", "runtime_initialization");
+    LSB_Res();
+    ocd_runtime_init();
+    LSB_Rec(0);
+
     LSB_Set_Rparam_string("region", "host_input_setup");
     LSB_Res();
 

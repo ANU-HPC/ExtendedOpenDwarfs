@@ -227,12 +227,12 @@ LSB_Set_Rparam_int("repeats_to_two_seconds", 0);
 	LSB_Set_Rparam_int("number_of_pages", 0);
 	LSB_Set_Rparam_int("page_size", 0);
 
+	ocd_parse(&argc, &argv);  /* argument parsing: outside the timed region */
+	ocd_check_requirements(NULL);
+
 	LSB_Set_Rparam_string("region", "runtime_initialization");
 	LSB_Res();
-
-	ocd_parse(&argc, &argv);
-	ocd_check_requirements(NULL);
-	ocd_initCL();
+	ocd_runtime_init();
 
 	write_queue = clCreateCommandQueue(context, device_id, CL_QUEUE_PROFILING_ENABLE, &err);
 	CHKERR(err, "Failed to create write command queue!");

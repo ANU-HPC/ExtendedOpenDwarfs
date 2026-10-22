@@ -30,6 +30,7 @@
 } while (0)
 
 #include "dwt2d_kernel.cuh"
+#include "../../../include/odw_runtime_init.h"
 
 struct dwt {
     char * srcFilename;
@@ -411,7 +412,7 @@ int main(int argc, char **argv)
 
     LSB_Set_Rparam_string("region", "runtime_initialization");
     LSB_Res();
-    CUDA_CHECK(cudaFree(NULL));
+    odw_runtime_init(0);
     LSB_Rec(0);
 
     LSB_Set_Rparam_string("region", "host_side_setup");

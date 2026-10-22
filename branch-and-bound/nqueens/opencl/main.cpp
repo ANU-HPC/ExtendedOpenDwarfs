@@ -43,7 +43,7 @@ int main(int argc, char** argv)
   LSB_Res();
 #endif
 
-  ocd_initCL();
+  ocd_runtime_init();
 
 #if HAVE_LSB
   LSB_Rec(0);

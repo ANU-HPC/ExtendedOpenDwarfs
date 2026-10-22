@@ -147,7 +147,6 @@ void calc_potential_single_step(residue *residues,
 
 	cl_int status = 0;
 	cl_int errcode;
-	ocd_initCL();
 
     const char* lsb_name = getenv("ODW_LSB_NAME");
 	if (lsb_name == NULL || lsb_name[0] == '\0') {
@@ -157,6 +156,11 @@ void calc_potential_single_step(residue *residues,
     LSB_Set_Rparam_int("number_of_residues",nres);
     LSB_Set_Rparam_int("number_of_vertices",nvert);
     LSB_Set_Rparam_int("repeats_to_two_seconds",0);
+
+    LSB_Set_Rparam_string("region", "runtime_initialization");
+    LSB_Res();
+    ocd_runtime_init();
+    LSB_Rec(0);
 
 	/////////////////////////////////////////////////////////////////
 	// Load CL file, build CL program object, create CL kernel object

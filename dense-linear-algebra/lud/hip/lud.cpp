@@ -14,6 +14,7 @@
 
 extern "C" {
 #include "common.h"
+#include "../../../include/odw_runtime_init.h"
 }
 
 int BLOCK_SIZE = 16;
@@ -191,8 +192,7 @@ int main(int argc, char** argv)
 
 	record_region_start("runtime_initialization");
 
-	hip_check(hipSetDevice(hip_device), "failed to select HIP device");
-	hip_check(hipFree(0), "failed to initialize HIP runtime");
+	odw_runtime_init(hip_device);
 	hip_check(hipStreamCreate(&stream), "failed to create HIP stream");
 
 	printf("HIP device = %d\n", hip_device);

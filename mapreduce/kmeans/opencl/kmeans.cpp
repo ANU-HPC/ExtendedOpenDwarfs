@@ -39,12 +39,16 @@ cl_mem t_clusters;*/
 extern "C"
 void initCL()
 {
+    LSB_Set_Rparam_string("region", "runtime_initialization");
+    LSB_Res();
+    ocd_runtime_init();
+    LSB_Rec(0);
+
     LSB_Set_Rparam_string("region", "kernel_creation");
     LSB_Res();
 
     cl_int errcode = 0;
 
-    ocd_initCL();
     localWorkSize = ocd_get_options().workgroup_1d;
 
     if (localWorkSize == 0){

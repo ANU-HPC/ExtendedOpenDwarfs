@@ -154,7 +154,7 @@ void init_cl()
 	const char *progSrc;
 
 	record_region_start("runtime_initialization");
-	ocd_initCL();//KK
+	ocd_runtime_init();
 	record_region_end(0);
 
 	/* identify the first platform */
@@ -1410,9 +1410,7 @@ int main(int argc, char *argv[])
 	LSB_Init(get_lsb_name(), 0);
 	LSB_Set_Rparam_int("repeats_to_two_seconds", 0);
 
-	record_region_start("runtime_initialization");
-	ocd_init(&argc, &argv, NULL);
-	record_region_end(0);
+	ocd_init(&argc, &argv, NULL);  /* argument parsing: outside the timed region */
 
 	int opt, opt_index = 0;
 	char v_model = 'n';

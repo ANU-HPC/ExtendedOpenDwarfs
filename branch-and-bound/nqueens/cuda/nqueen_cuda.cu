@@ -12,6 +12,7 @@
 #include <sstream>
 #include <vector>
 #include <sys/time.h>
+#include "../../../include/odw_runtime_init.h"
 
 #if __has_include(<liblsb.h>)
 #include <liblsb.h>
@@ -191,21 +192,6 @@ long long NQueenSolverCUDA::Compute(int board_size, long long* unique)
     int max_pitch = (max_threads + 15) & ~0xf;
 
 #if HAVE_LSB
-    /* Declare every parameter before the first region: a parameter first set later prints
-     * as NA in earlier rows, and adjacent NAs fuse ("NANA"), shifting the columns and
-     * losing the time of the runtime_initialization row. */
-    LSB_Set_Rparam_int("repeats_to_two_seconds", 0);
-    LSB_Set_Rparam_int("j", 0);
-
-    LSB_Set_Rparam_string("region", "runtime_initialization");
-    LSB_Res();
-#endif
-
-    CUDA_CHECK(cudaFree(0));
-
-#if HAVE_LSB
-    LSB_Rec(0);
-
     LSB_Set_Rparam_string("region", "device_side_buffer_setup");
     LSB_Res();
 #endif
@@ -555,4 +541,9 @@ long long NQueenSolverCUDA::Compute(int board_size, long long* unique)
     }
 
     return solutions;
+}
+
+void nqueen_runtime_init()
+{
+    odw_runtime_init(0);
 }

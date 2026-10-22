@@ -6,6 +6,7 @@
 
 extern "C" {
 #include "../../include/lsb.h"
+#include "../../../include/odw_runtime_init.h"
 }
 
 #define HIP_CHECK(call)                                                         \
@@ -53,8 +54,12 @@ static float* clusters_d = nullptr;
 extern "C"
 void initCL()
 {
-    /* Preserve the legacy KMeans host interface name. */
-    HIP_CHECK(hipFree(nullptr));
+    /* Preserve the legacy KMeans host interface name. Device start-up is timed as the
+     * "runtime_initialization" region, as in every other application (see odw_runtime_init.h). */
+    LSB_Set_Rparam_string("region", "runtime_initialization");
+    LSB_Res();
+    odw_runtime_init(0);
+    LSB_Rec(0);
 }
 
 extern "C"

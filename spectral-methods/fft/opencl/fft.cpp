@@ -1464,7 +1464,7 @@ int benchmark(int N){
 
     LSB_Set_Rparam_string("region", "runtime_initialization");
     LSB_Res();
-    ocd_initCL();
+    ocd_runtime_init();
     LSB_Rec(0);
     std::string msg;
     LSB_Set_Rparam_string("region", "host_side_setup");
