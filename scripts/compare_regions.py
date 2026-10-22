@@ -26,8 +26,12 @@ is slower. Ratios beyond --tol are marked SLOW / fast.
 Summary metrics per app:
   kernel  sum of regions classified "kernel" (includes setting_*_kernel_arguments,
           as in the heatmaps)
-  total   sum of all regions except runtime_initialization / runtime_finalization
-          (once-only costs outside the repeat loop)
+  total   sum of ALL regions, including runtime_initialization / runtime_finalization.
+          Device start-up is real cost for every runtime, but it lands in different
+          regions (SCALE defers it to the first allocation or stream creation; HIP pays
+          it in the init region), so excluding any region would charge one side only.
+  total_ex_init  (with --show-total-ex-init) as total but without the once-only
+          init/finalisation regions; a diagnostic only, not comparable across runtimes.
 """
 import argparse
 import csv
@@ -168,6 +172,8 @@ def main():
     ap.add_argument("--min-us", type=float, default=0.0,
                     help="hide regions whose largest value is below this many us (noisy ratios)")
     ap.add_argument("--csv", help="also write a long-format CSV here")
+    ap.add_argument("--show-total-ex-init", action="store_true",
+                    help="also print total_ex_init (total without runtime_initialization/finalization); diagnostic only")
     a = ap.parse_args()
 
     dirs = []
@@ -219,8 +225,11 @@ def main():
             vs = [regs[r][c] for r in regs if c in regs[r] and pred(r)]
             return sum(vs) if vs else None
 
-        for metric, pred in (("kernel", lambda r: classify(r) == "kernel"),
-                             ("total", lambda r: r not in ONCE_ONLY)):
+        metrics = [("kernel", lambda r: classify(r) == "kernel"),
+                   ("total", lambda r: True)]
+        if a.show_total_ex_init:
+            metrics.append(("total_ex_init", lambda r: r not in ONCE_ONLY))
+        for metric, pred in metrics:
             vals = {c: agg(c, pred) for c in cols}
             summary.append([bench, metric] + [fmt_us(vals[c]) for c in cols]
                            + [fmt_ratio(vals.get(n), vals.get(d), a.tol) for n, d in ratios])
