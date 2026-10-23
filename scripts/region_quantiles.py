@@ -21,6 +21,7 @@ from compare_regions import classify, parse_name  # noqa: E402
 
 
 def rows(path):
+    """-> (region, time_us, repeat_id) for every data row"""
     hdr = None
     with open(path, errors="replace") as f:
         for line in f:
@@ -29,12 +30,13 @@ def rows(path):
             p = [q for t in line.split() for q in (["NA"] * (len(t) // 2) if re.fullmatch(r"(?:NA){2,}", t) else [t])]
             if hdr is None:
                 if "region" in p and "time" in p:
-                    hdr = (p.index("region"), p.index("time"))
+                    hdr = (p.index("region"), p.index("time"),
+                           p.index("repeats_to_two_seconds") if "repeats_to_two_seconds" in p else None)
                 continue
-            if len(p) <= max(hdr):
+            if len(p) <= max(h for h in hdr if h is not None):
                 continue
             try:
-                yield p[hdr[0]], float(p[hdr[1]])
+                yield p[hdr[0]], float(p[hdr[1]]), (p[hdr[2]] if hdr[2] is not None else "0")
             except ValueError:
                 pass
 
@@ -58,6 +60,7 @@ def main():
     apps = set(a.apps.split(","))
 
     data = defaultdict(list)  # (app, region, label:impl) -> samples
+    reps = defaultdict(int)   # same key -> sum over files of distinct repeats_to_two_seconds
     for spec in a.dir:
         label, path = spec.split("=", 1)
         for p in sorted(Path(path).expanduser().glob("lsb.*")):
@@ -66,18 +69,26 @@ def main():
                 continue
             if a.impl and m["impl"] not in a.impl:
                 continue
-            for region, t in rows(p):
+            seen = defaultdict(set)
+            for region, t, rep in rows(p):
                 if a.all_classes or classify(region) == "kernel":
-                    data[(m["bench"], region, f"{label}:{m['impl']}")].append(t)
+                    key = (m["bench"], region, f"{label}:{m['impl']}")
+                    data[key].append(t)
+                    seen[key].add(rep)
+            for key, s in seen.items():
+                reps[key] += len(s)
 
-    print(f"{'app':8s} {'region':28s} {'column':22s} {'n':>8s} {'mean':>9s} {'p50':>9s} {'p90':>9s} {'p99':>9s} "
-          f"{'max':>11s} {'mean/p50':>8s} {'p50 sum':>10s}")
-    for (app, region, col), xs in sorted(data.items()):
+    print(f"{'app':8s} {'region':28s} {'column':22s} {'n':>8s} {'reps':>7s} {'n/rep':>7s} {'mean':>9s} {'p50':>9s} "
+          f"{'p99':>9s} {'max':>11s} {'mean/p50':>8s} {'per-rep us':>11s}")
+    for key, xs in sorted(data.items()):
+        app, region, col = key
         xs.sort()
         mean, med = statistics.mean(xs), q(xs, .5)
-        print(f"{app:8s} {region:28s} {col:22s} {len(xs):8d} {mean:9.1f} {med:9.1f} {q(xs, .9):9.1f} {q(xs, .99):9.1f} "
-              f"{xs[-1]:11.1f} {mean / med if med else float('nan'):8.2f} {med * len(xs) / 1e3:10.0f}")
-    print("\n(us per sample; 'p50 sum' = median x count, in ms, i.e. what the region would total with no tail)")
+        r = max(reps[key], 1)
+        print(f"{app:8s} {region:28s} {col:22s} {len(xs):8d} {r:7d} {len(xs) / r:7.2f} {mean:9.1f} {med:9.1f} "
+              f"{q(xs, .99):9.1f} {xs[-1]:11.1f} {mean / med if med else float('nan'):8.2f} {sum(xs) / r:11.1f}")
+    print("\n(us per sample; reps = distinct repeats_to_two_seconds summed over the run files; n/rep = region executions per "
+          "repeat;\n per-rep us = sum(time) / reps, i.e. exactly what compare_regions.py and the heatmap normalise to)")
 
 
 if __name__ == "__main__":
