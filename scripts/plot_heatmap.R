@@ -165,7 +165,7 @@ run_for_metric <- function(metric, df, base_out_dir, frac_with_runtime) {
   log_msg("--- metric=%s: writing outputs to %s ---", metric, out_dir)
   if (metric == "runtime") {
     runtime_df <- df |>
-      distinct(system, benchmark, size, device, implementation, run, runtime_s) |>
+      distinct(system, benchmark, size, device, implementation, run, run_variant, runtime_s) |>
       filter(!is.na(runtime_s))
   } else {
     # df is pre-aggregated per (file, region) rather than per raw row --
@@ -183,7 +183,11 @@ run_for_metric <- function(metric, df, base_out_dir, frac_with_runtime) {
     }
     runtime_df <- region_filter |>
       mutate(time_us_per_repeat = total_time_us / n_repeats) |>
-      group_by(system, benchmark, size, device, implementation, run) |>
+      # run_variant must be part of the key: files are named lsb.<app>_..._<dev>.r<run>-<variant>
+      # and every repeated process of a config shares run=0. Grouping by run alone sums all
+      # of them into one pseudo-run (the total came out ITERS times too large, n_runs was 1,
+      # and the median across runs was never taken).
+      group_by(system, benchmark, size, device, implementation, run, run_variant) |>
       summarise(runtime_s = sum(time_us_per_repeat) / 1e6, .groups = "drop")
   }
   if (nrow(runtime_df) == 0) {
