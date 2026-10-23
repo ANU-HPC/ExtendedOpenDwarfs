@@ -23,8 +23,14 @@
 # Metric selection:
 #   --metric=total     sum of every measured region's time, normalized by
 #                       repeat count (default, run alongside kernel)
-#   --metric=kernel     same, but restricted to region_class == "Kernel"
-#                        (default, run alongside total)
+#   --metric=kernel_steady  Kernel-class regions measured under more than one repeat id
+#                        (per-launch steady state; default, run alongside the others)
+#   --metric=kernel_oneoff  Kernel-class regions that execute once per process (first
+#                        launches / lazy code-object loading). Reported separately so they
+#                        cannot masquerade as kernel speed (default)
+#   --metric=kernel     LEGACY: steady + one-off summed. Kept for comparison with older
+#                        figures; it is dominated by one-off first-launch cost at tiny sizes
+#                        (kmeans/cfd/dwt "0.1-0.3x" came entirely from that), so avoid it.
 #   --metric=runtime    raw end-to-end wall time from the "# Runtime:"
 #                        header. NOTE: for benchmarks using a
 #                        stabilize-until-~2s repeat loop, this measures
@@ -40,7 +46,7 @@
 #                        auto-selecting silently makes it easy to lose
 #                        track of which metric produced a given figure.
 #
-#   With NO --metric flag at all, both "kernel" and "total" are run in a
+#   With NO --metric flag at all, "kernel_steady", "kernel_oneoff" and "total" are run in a
 #   single invocation (sharing one parsed dataset), each writing to its own
 #   subdirectory. Pass --metric=X explicitly for just one.
 #
@@ -74,8 +80,8 @@ SCRIPT_START <- Sys.time()
 source(file.path(.script_dir, "lsb_common.R"))
 args <- commandArgs(trailingOnly = TRUE)
 force_reparse <- any(args == "--force-reparse")
-VALID_METRICS <- c("auto", "runtime", "total", "kernel")
-DEFAULT_METRICS <- c("kernel", "total")
+VALID_METRICS <- c("auto", "runtime", "total", "kernel", "kernel_steady", "kernel_oneoff")
+DEFAULT_METRICS <- c("kernel_steady", "kernel_oneoff", "total")
 metric_flag <- str_match(args, "^--metric=(.+)$")[, 2]
 metric_flag <- metric_flag[!is.na(metric_flag)]
 if (length(metric_flag) > 0) {
@@ -155,7 +161,9 @@ run_for_metric <- function(metric, df, base_out_dir, frac_with_runtime) {
   metric_label <- switch(metric,
     runtime = "end-to-end runtime",
     total = "total measured region time",
-    kernel = "kernel-region time"
+    kernel = "kernel-region time (steady + one-off; legacy)",
+    kernel_steady = "steady-state kernel-region time",
+    kernel_oneoff = "one-off kernel-region time (first launch)"
   )
   # Nest outputs under a metric-specific subdirectory (e.g. results/plots/total/,
   # results/plots/kernel/) so running multiple metrics never overwrites a
@@ -180,6 +188,13 @@ run_for_metric <- function(metric, df, base_out_dir, frac_with_runtime) {
     region_filter <- df
     if (metric == "kernel") {
       region_filter <- df |> filter(region_class == "Kernel")
+    } else if (metric == "kernel_steady") {
+      # kernel regions measured under more than one repeat id: per-launch steady state
+      region_filter <- df |> filter(region_class == "Kernel", n_repeats > 1)
+    } else if (metric == "kernel_oneoff") {
+      # kernel regions that execute under a single repeat id, i.e. once per process
+      # (first launches: lazy code-object load etc.). Not a performance-of-the-kernel metric.
+      region_filter <- df |> filter(region_class == "Kernel", n_repeats <= 1)
     }
     runtime_df <- region_filter |>
       mutate(time_us_per_repeat = total_time_us / n_repeats) |>
