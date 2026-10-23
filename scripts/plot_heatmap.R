@@ -23,8 +23,12 @@
 # Metric selection:
 #   --metric=total     sum of every measured region's time, normalized by
 #                       repeat count (default, run alongside kernel)
+#   --metric=kernel_steady_median  same regions, but each region contributes
+#                        median(sample) x executions-per-repeat instead of its mean, so rare
+#                        100 ms-scale stalls (seen in SCALE runs) do not dominate. Preferred
+#                        for the headline figure (default)
 #   --metric=kernel_steady  Kernel-class regions measured under more than one repeat id
-#                        (per-launch steady state; default, run alongside the others)
+#                        (per-launch steady state, mean; includes the stalls; default)
 #   --metric=kernel_oneoff  Kernel-class regions that execute once per process (first
 #                        launches / lazy code-object loading). Reported separately so they
 #                        cannot masquerade as kernel speed (default)
@@ -80,8 +84,8 @@ SCRIPT_START <- Sys.time()
 source(file.path(.script_dir, "lsb_common.R"))
 args <- commandArgs(trailingOnly = TRUE)
 force_reparse <- any(args == "--force-reparse")
-VALID_METRICS <- c("auto", "runtime", "total", "kernel", "kernel_steady", "kernel_oneoff")
-DEFAULT_METRICS <- c("kernel_steady", "kernel_oneoff", "total")
+VALID_METRICS <- c("auto", "runtime", "total", "kernel", "kernel_steady", "kernel_steady_median", "kernel_oneoff")
+DEFAULT_METRICS <- c("kernel_steady_median", "kernel_steady", "kernel_oneoff", "total")
 metric_flag <- str_match(args, "^--metric=(.+)$")[, 2]
 metric_flag <- metric_flag[!is.na(metric_flag)]
 if (length(metric_flag) > 0) {
@@ -162,7 +166,8 @@ run_for_metric <- function(metric, df, base_out_dir, frac_with_runtime) {
     runtime = "end-to-end runtime",
     total = "total measured region time",
     kernel = "kernel-region time (steady + one-off; legacy)",
-    kernel_steady = "steady-state kernel-region time",
+    kernel_steady = "steady-state kernel-region time (mean)",
+    kernel_steady_median = "steady-state kernel-region time (median sample)",
     kernel_oneoff = "one-off kernel-region time (first launch)"
   )
   # Nest outputs under a metric-specific subdirectory (e.g. results/plots/total/,
@@ -188,7 +193,7 @@ run_for_metric <- function(metric, df, base_out_dir, frac_with_runtime) {
     region_filter <- df
     if (metric == "kernel") {
       region_filter <- df |> filter(region_class == "Kernel")
-    } else if (metric == "kernel_steady") {
+    } else if (metric %in% c("kernel_steady", "kernel_steady_median")) {
       # kernel regions measured under more than one repeat id: per-launch steady state
       region_filter <- df |> filter(region_class == "Kernel", n_repeats > 1)
     } else if (metric == "kernel_oneoff") {
@@ -196,8 +201,14 @@ run_for_metric <- function(metric, df, base_out_dir, frac_with_runtime) {
       # (first launches: lazy code-object load etc.). Not a performance-of-the-kernel metric.
       region_filter <- df |> filter(region_class == "Kernel", n_repeats <= 1)
     }
+    # kernel_steady_median: typical sample (median) x executions per repeat, so rare
+    # 100 ms-scale stalls inside one sample cannot dominate the per-repeat total.
     runtime_df <- region_filter |>
-      mutate(time_us_per_repeat = total_time_us / n_repeats) |>
+      mutate(time_us_per_repeat = if (metric == "kernel_steady_median") {
+        median_time_us * n_rows / n_repeats
+      } else {
+        total_time_us / n_repeats
+      }) |>
       # run_variant must be part of the key: files are named lsb.<app>_..._<dev>.r<run>-<variant>
       # and every repeated process of a config shares run=0. Grouping by run alone sums all
       # of them into one pseudo-run (the total came out ITERS times too large, n_runs was 1,

@@ -266,8 +266,12 @@ parse_lsb_table_dt <- function(dt, meta, system, runtime_s) {
     return(NULL)
   }
 
+  # median_time_us: median of the individual samples of this region in this file. A mean is
+  # carried by total_time_us/n_rows; the median lets metrics ignore rare multi-100ms stalls
+  # (seen in SCALE runs) that otherwise dominate a per-repeat mean.
   agg <- slim[, .(
     total_time_us = sum(time_us),
+    median_time_us = median(time_us),
     n_rows = .N,
     n_repeats = uniqueN(repeat_id)
   ), by = region]
@@ -286,6 +290,7 @@ parse_lsb_table_dt <- function(dt, meta, system, runtime_s) {
     region = agg$region,
     region_class = classify_region(agg$region),
     total_time_us = agg$total_time_us,
+    median_time_us = agg$median_time_us,
     n_rows = agg$n_rows,
     n_repeats = agg$n_repeats,
     runtime_s = runtime_s
@@ -626,8 +631,13 @@ lsb_manifest <- function(files) {
     arrange(file)
 }
 
+# Bump when the columns produced by parse_lsb_table_dt() change, so caches written by an
+# older parser are treated as stale instead of being loaded without the new columns.
+# 2: added median_time_us
+LSB_PARSE_SCHEMA <- 2L
+
 lsb_manifest_hash <- function(manifest) {
-  digest::digest(manifest, algo = "xxhash64")
+  paste0(digest::digest(manifest, algo = "xxhash64"), "-s", LSB_PARSE_SCHEMA)
 }
 
 #' Read all LSB files in a directory, using a manifest-hash cache.
