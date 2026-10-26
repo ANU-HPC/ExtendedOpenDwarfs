@@ -397,13 +397,16 @@ run_for_metric <- function(metric, df, base_out_dir, frac_with_runtime) {
   # (no subcaption call means no subfigure counter to reference) -- the two
   # body-text call sites that used those refs now use literal "2a"/"2b"
   # text instead (see document.tex).
-  arch_caption <- list(
-    nvidia = paste0("(a) ", architecture_labels$nvidia, " vs. ", native_short_label$nvidia),
-    amd = paste0(
-      "(b) ", architecture_labels$amd, " vs. ", native_short_label$amd,
-      " — FFT absent for all AMD devices (known SCALE-AMD compiler issue, Table 1)"
-    )
-  )
+  # The caption is derived from the data: it only mentions a missing benchmark
+  # when that benchmark is genuinely absent for this architecture (it used to
+  # hard-code "FFT absent for all AMD devices", which became false once FFT ran).
+  letter <- c(nvidia = "(a) ", amd = "(b) ")
+  arch_caption <- function(arch, arch_df) {
+    base <- paste0(letter[[arch]], architecture_labels[[arch]], " vs. ", native_short_label[[arch]])
+    missing <- setdiff(unique(heatmap_df$benchmark), unique(arch_df$benchmark))
+    if (length(missing) == 0) return(base)
+    paste0(base, "; absent: ", paste(toupper(missing), collapse = ", "))
+  }
   # Matches AMD's current (good) device-count-to-canvas-width density;
   # NVIDIA's height is derived from it below instead of from its own
   # independent formula, so a panel with fewer devices doesn't end up
@@ -444,7 +447,7 @@ run_for_metric <- function(metric, df, base_out_dir, frac_with_runtime) {
       labs(
         x = NULL,
         y = NULL,
-        caption = arch_caption[[arch]]
+        caption = arch_caption(arch, arch_df)
       )
     # The colour legend's meaning (blue=faster/orange=slower) and the metric
     # being shown are both already stated once in the shared Figure 2
